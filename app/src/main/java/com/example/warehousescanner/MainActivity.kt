@@ -1,38 +1,35 @@
 package com.example.warehousescanner
 
-import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.warehousescanner.ui.navigation.MainNavHost
-import com.example.warehousescanner.ui.screens.AuthScreen
-import com.example.warehousescanner.ui.screens.FilePickerScreen
+import com.example.warehousescanner.ui.screens.*
 import com.example.warehousescanner.viewmodel.ExcelViewModel
 
 class MainActivity : ComponentActivity() {
-    private val CLIENT_ID    = "586d70fd7a0540bf8985c039763b8986"
-    private val REDIRECT_URI = "com.example.warehousescanner://oauth"
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        handleRedirect(intent)
+        val oauthToken = "<YOUR_OAUTH_TOKEN>"
 
         setContent {
-            val navController = rememberNavController()
+            val nav = rememberNavController()
             val excelVm: ExcelViewModel = viewModel()
             val fileUri by excelVm.fileUriState.collectAsState()
-            val token = YandexAuth.token
 
             Surface(
                 modifier = Modifier
@@ -40,41 +37,124 @@ class MainActivity : ComponentActivity() {
                     .systemBarsPadding(),
                 color = MaterialTheme.colors.background
             ) {
-                when {
-                    fileUri == null ->
-                        FilePickerScreen { excelVm.setFile(it) }
+                if (fileUri == null) {
+                    FilePickerScreen { uri ->
+                        excelVm.setFile(uri)
+                    }
+                } else {
+                    NavHost(navController = nav, startDestination = "scan") {
+                        composable("scan") {
+                            ScanScreen { code ->
+                                nav.currentBackStackEntry
+                                    ?.savedStateHandle
+                                    ?.set("barcode", code)
+                                nav.navigate("lookup")
+                            }
+                        }
+                        composable("lookup") {
+                            val barcode = nav
+                                .previousBackStackEntry
+                                ?.savedStateHandle
+                                ?.get<String>("barcode")
+                                ?: ""
+                            LaunchedEffect(barcode) { excelVm.lookup(barcode) }
+                            val linkState by excelVm.linkState.collectAsState()
+                            when {
+                                linkState == null -> {
+                                    CircularProgressIndicator()
+                                }
+                                linkState!!.isNotEmpty() -> {
+                                    nav.currentBackStackEntry
+                                        ?.savedStateHandle
+                                        ?.set("scanUrl", linkState!!)
+                                    nav.navigate("check")
+                                }
+                                else -> {
+                                    LinkEditScreen(
+                                        barcode = barcode,
+                                        initialLink = "",
+                                        onSave = { newLink ->
+                                            excelVm.save(barcode, newLink)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        composable("check") {
+                            val scanUrl = nav
+                                .previousBackStackEntry
+                                ?.savedStateHandle
+                                ?.get<String>("scanUrl")
+                                ?: ""
+                            CheckScreen(scanUrl) { status, comment ->
+                                nav.currentBackStackEntry
+                                    ?.savedStateHandle
+                                    ?.set("checkResult", status to comment)
+                                nav.navigate("photo")
+                            }
+                        }
+                        composable("photo") {
+                            val checkResult = nav
+                                .previousBackStackEntry
+                                ?.savedStateHandle
+                                ?.get<Pair<String, String>>("checkResult")
+                                ?: "" to ""
+                            PhotoScreen { photos ->
+                                val list = ArrayList(photos.map { it.toString() })
+                                nav.currentBackStackEntry
+                                    ?.savedStateHandle
+                                    ?.set("photos", list)
+                                nav.navigate("defect")
+                            }
+                        }
+                        composable("defect") {
+                            val photos = nav
+                                .previousBackStackEntry
+                                ?.savedStateHandle
+                                ?.get<ArrayList<String>>("photos")
+                                ?.map { Uri.parse(it) }
+                                ?: emptyList()
+                            DefectScreen { hasDefect, desc ->
+                                nav.currentBackStackEntry
+                                    ?.savedStateHandle
+                                    ?.set("defectResult", hasDefect to desc)
+                                nav.navigate("result")
+                            }
+                        }
+                        composable("result") {
+                            val scanUrl = nav
+                                .getBackStackEntry("check")
+                                .savedStateHandle
+                                .get<String>("scanUrl")
+                                ?: ""
+                            val checkResult = nav
+                                .getBackStackEntry("check")
+                                .savedStateHandle
+                                .get<Pair<String, String>>("checkResult")
+                                ?: "" to ""
+                            val photos = nav
+                                .getBackStackEntry("photo")
+                                .savedStateHandle
+                                .get<ArrayList<String>>("photos")
+                                ?.map { Uri.parse(it) }
+                                ?: emptyList()
+                            val defectResult = nav
+                                .getBackStackEntry("defect")
+                                .savedStateHandle
+                                .get<Pair<Boolean, String>>("defectResult")
+                                ?: false to ""
 
-                    token == null   ->
-                        AuthScreen(CLIENT_ID, REDIRECT_URI)
-
-                    else            ->
-                        MainNavHost(navController, excelVm)
-                }
-            }
-        }
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        handleRedirect(intent)
-    }
-
-    private fun handleRedirect(intent: Intent) {
-        intent.data?.let { uri: Uri ->
-            // схема://oauth#access_token=...&...
-            if (uri.scheme == "com.example.warehousescanner" && uri.host == "oauth") {
-                val frag = uri.fragment
-                if (frag != null) {
-                    // Ищем параметр access_token в фрагменте
-                    val tokenPart = frag.split("&")
-                        .firstOrNull { it.startsWith("access_token=") }
-                    val token = tokenPart?.substringAfter("access_token=")
-                    if (!token.isNullOrBlank()) {
-                        YandexAuth.token = token
-                        return
+                            ResultScreen(
+                                context = LocalContext.current,
+                                scanUrl = scanUrl,
+                                checkResult = checkResult,
+                                photos = photos,
+                                defectResult = defectResult,
+                                oauthToken = oauthToken
+                            )
+                        }
                     }
                 }
-                Toast.makeText(this, "OAuth failed: token not found", Toast.LENGTH_LONG).show()
             }
         }
     }

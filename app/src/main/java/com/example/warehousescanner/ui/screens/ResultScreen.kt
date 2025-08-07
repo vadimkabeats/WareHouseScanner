@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.warehousescanner.data.YandexDiskClient
@@ -14,9 +15,9 @@ import kotlinx.coroutines.launch
 fun ResultScreen(
     context: Context,
     scanUrl: String,
-    checkResult: Pair<String,String>,
+    checkResult: Pair<String, String>,
     photos: List<Uri>,
-    defectResult: Pair<Boolean,String>,
+    defectResult: Pair<Boolean, String>,
     oauthToken: String
 ) {
     val scope = rememberCoroutineScope()
@@ -27,7 +28,7 @@ fun ResultScreen(
         YandexDiskClient.init(oauthToken)
     }
 
-    // Человекочитаемый статус
+    // Преобразуем статус в человекочитаемую строку
     val statusText = when (checkResult.first) {
         "match"    -> "Совпадает"
         "mismatch" -> "Не совпадает"
@@ -41,12 +42,16 @@ fun ResultScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text("Обзор данных", style = MaterialTheme.typography.h6)
-        Text("URL товара: $scanUrl")
+        Text("URL: $scanUrl")
         Text("Статус проверки: $statusText")
-        checkResult.second.takeIf { it.isNotBlank() }?.let { Text("Комментарий: $it") }
+        if (checkResult.second.isNotBlank()) {
+            Text("Комментарий: ${checkResult.second}")
+        }
         Text("Фото: ${photos.size} шт.")
         Text("Дефект: ${if (defectResult.first) "Есть" else "Нет"}")
-        defectResult.second.takeIf { it.isNotBlank() }?.let { Text("Описание дефекта: $it") }
+        if (defectResult.first) {
+            Text("Описание дефекта: ${defectResult.second}")
+        }
 
         Spacer(Modifier.weight(1f))
 
@@ -59,26 +64,16 @@ fun ResultScreen(
                         isLoading = true
                         message = ""
                         try {
-                            // Создаём папку по текущему времени
                             val folder = "Warehouse/${System.currentTimeMillis()}"
-
-                            // 1) Загружаем и публикуем фото — получаем публичные ссылки
-                            val photoUrls = YandexDiskClient
-                                .uploadAndPublishImages(folder, photos, context)
-
-                            // 2) Формируем единую структуру метаданных
                             val metadata = mapOf(
                                 "url"               to scanUrl,
                                 "status"            to statusText,
                                 "comment"           to checkResult.second,
-                                "photos"            to photoUrls,
                                 "hasDefect"         to defectResult.first,
                                 "defectDescription" to defectResult.second
                             )
-
-                            // 3) Загружаем JSON с метаданными
                             YandexDiskClient.uploadMetadata("$folder/metadata.json", metadata)
-
+                            YandexDiskClient.uploadImages(folder, photos, context)
                             message = "Данные успешно отправлены"
                         } catch (e: Exception) {
                             message = "Ошибка: ${e.localizedMessage}"
@@ -89,12 +84,12 @@ fun ResultScreen(
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Отправить на Яндекс.Диск")
+                Text("Отправить")
             }
         }
 
         if (message.isNotBlank()) {
-            Text(message, color = if (message.startsWith("Ошибка")) MaterialTheme.colors.error else MaterialTheme.colors.primary)
+            Text(message)
         }
     }
 }
