@@ -1,47 +1,60 @@
-// YandexDiskClient.kt
 package com.example.warehousescanner.data
 
 import android.content.Context
 import android.net.Uri
-import com.google.gson.Gson
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 object YandexDiskClient {
-    private const val BASE_URL = "https://cloud-api.yandex.net/"
-    private lateinit var token: String
-    private val api by lazy {
-        Retrofit.Builder()
-            .baseUrl(BASE_URL)
+    private lateinit var api: YandexDiskApi
+    private lateinit var authHeader: String
+
+    fun init(oauthToken: String) {
+        authHeader = "OAuth $oauthToken"
+        api = Retrofit.Builder()
+            .baseUrl("https://cloud-api.yandex.net/")
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(YandexDiskApi::class.java)
     }
 
-    fun init(oauthToken: String) {
-        token = oauthToken
+    suspend fun ensureFolder(path: String) {
+        try { api.createFolder(authHeader, path) } catch (_: Exception) { }
     }
 
     private suspend fun uploadBytes(path: String, bytes: ByteArray) {
-        val link = api.getUploadLink("OAuth $token", path)
-        val body = bytes.toRequestBody("application/octet-stream".toMediaType())
-        api.uploadFile(link.href, body)
+        val href = api.getUploadLink(authHeader, path).href
+        val body: RequestBody = bytes.toRequestBody("application/octet-stream".toMediaType())
+        api.uploadFile(href, body)
     }
 
-    suspend fun uploadMetadata(path: String, metadata: Any) {
-        val json = Gson().toJson(metadata)
-        uploadBytes(path, json.toByteArray(Charsets.UTF_8))
+    suspend fun uploadTextFile(path: String, text: String) {
+        uploadBytes(path, text.toByteArray(Charsets.UTF_8))
     }
 
-    suspend fun uploadImages(folder: String, photos: List<Uri>, context: Context) {
+    suspend fun uploadImagesDated(
+        photos: List<Uri>,
+        context: Context,
+        barcode: String
+    ): String {
+        val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        val root = "Warehouse"
+        val folder = "$root/$date"
+        ensureFolder(root)
+        ensureFolder(folder)
         photos.forEachIndexed { index, uri ->
-            val input = context.contentResolver.openInputStream(uri)
-            val bytes = input?.use { it.readBytes() } ?: return@forEachIndexed
-            val fileName = "$folder/photo_${index + 1}.jpg"
-            uploadBytes(fileName, bytes)
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                val bytes = stream.readBytes()
+                val name = "${barcode}_${index + 1}.jpg"
+                uploadBytes("$folder/$name", bytes)
+            }
         }
+        return folder
     }
 }
