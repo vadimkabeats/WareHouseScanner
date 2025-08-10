@@ -13,18 +13,14 @@ import kotlinx.coroutines.launch
 class ExcelViewModel(application: Application) : AndroidViewModel(application) {
     private val repo = ExcelRepository(application)
 
-    // URI файла базы, либо null, если ещё не выбран
-    private val _fileUriState = MutableStateFlow<Uri?>(null)
+      private val _fileUriState = MutableStateFlow<Uri?>(null)
     val fileUriState: StateFlow<Uri?> = _fileUriState
 
-    // Состояние найденной ссылки: null=ещё не искали, ""=не найдено, не-пустая=найдено
-    private val _linkState = MutableStateFlow<String?>(null)
+       private val _linkState = MutableStateFlow<String?>(null)
     val linkState: StateFlow<String?> = _linkState
 
-    // Вызываем сразу после выбора пользователем файла .xlsx
-    fun setFile(uri: Uri) {
-        // даём постоянные права
-        getApplication<Application>().contentResolver.takePersistableUriPermission(
+     fun setFile(uri: Uri) {
+               getApplication<Application>().contentResolver.takePersistableUriPermission(
             uri,
             Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
         )

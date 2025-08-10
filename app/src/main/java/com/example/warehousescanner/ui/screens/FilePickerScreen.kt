@@ -9,7 +9,6 @@ import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 
 @Composable
 fun FilePickerScreen(onFilePicked: (Uri) -> Unit) {
@@ -25,7 +24,6 @@ fun FilePickerScreen(onFilePicked: (Uri) -> Unit) {
     ) {
         Button(
             onClick = {
-                // MIME-тип для .xlsx
                 launcher.launch(arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
             }
         ) {

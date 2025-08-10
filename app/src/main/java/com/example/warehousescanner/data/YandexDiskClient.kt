@@ -11,6 +11,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+data class YDUploadResult(val folder: String, val publicPhotoUrls: List<String>)
+
 object YandexDiskClient {
     private lateinit var api: YandexDiskApi
     private lateinit var authHeader: String
@@ -34,27 +36,50 @@ object YandexDiskClient {
         api.uploadFile(href, body)
     }
 
-    suspend fun uploadTextFile(path: String, text: String) {
-        uploadBytes(path, text.toByteArray(Charsets.UTF_8))
+    private fun safeNameFromUrl(url: String, maxLen: Int = 80): String =
+        url.lowercase(Locale.US).replace(Regex("[^a-z0-9]+"), "_").trim('_').let {
+            if (it.isEmpty()) "item" else it
+        }.take(maxLen)
+
+    private fun todayFolder(): String {
+        val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        return "Warehouse/$date"
     }
 
-    suspend fun uploadImagesDated(
-        photos: List<Uri>,
+    private suspend fun ensureDateUrlFolder(url: String): String {
+        val rootDate = todayFolder()
+        val urlFolder = safeNameFromUrl(url)
+        ensureFolder("Warehouse")
+        ensureFolder(rootDate)
+        val full = "$rootDate/$urlFolder"
+        ensureFolder(full)
+        return full
+    }
+
+    suspend fun uploadItemBundle(
         context: Context,
-        barcode: String
-    ): String {
-        val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-        val root = "Warehouse"
-        val folder = "$root/$date"
-        ensureFolder(root)
-        ensureFolder(folder)
+        url: String,
+        barcode: String,
+        textContent: String,
+        photos: List<Uri>
+    ): YDUploadResult {
+        val folder = ensureDateUrlFolder(url)
+
+        val txtName = "${safeNameFromUrl(url)}.txt"
+        uploadBytes("$folder/$txtName", textContent.toByteArray(Charsets.UTF_8))
+
+        val publicLinks = mutableListOf<String>()
         photos.forEachIndexed { index, uri ->
             context.contentResolver.openInputStream(uri)?.use { stream ->
                 val bytes = stream.readBytes()
-                val name = "${barcode}_${index + 1}.jpg"
-                uploadBytes("$folder/$name", bytes)
+                val photoName = "${barcode}_${index + 1}.jpg"
+                val path = "$folder/$photoName"
+                uploadBytes(path, bytes)
+                      runCatching { api.publish(authHeader, path) }
+                val meta = runCatching { api.getResource(authHeader, path) }.getOrNull()
+                meta?.publicUrl?.let { publicLinks.add(it) }
             }
         }
-        return folder
+        return YDUploadResult(folder, publicLinks)
     }
 }

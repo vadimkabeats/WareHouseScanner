@@ -22,13 +22,12 @@ fun AuthScreen(clientId: String, redirectUri: String) {
         Text("Для работы нужно авторизоваться на Яндекс.Диске")
         Spacer(Modifier.height(16.dp))
         Button(onClick = {
-            // Запрашиваем implicit grant с правильными scope
-            val authUrl = "https://oauth.yandex.ru/authorize" +
+                  val authUrl = "https://oauth.yandex.ru/authorize" +
                     "?response_type=token" +
                     "&client_id=$clientId" +
                     "&redirect_uri=${Uri.encode(redirectUri)}" +
                     "&scope=cloud_api:disk.read%20cloud_api:disk.write%20cloud_api:disk.app_folder" +
-                    "&force_confirm=yes" // принудительный запрос разрешений
+                    "&force_confirm=yes"
             ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(authUrl)))
         }) {
             Text("Авторизоваться")

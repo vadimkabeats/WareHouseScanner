@@ -1,7 +1,6 @@
 package com.example.warehousescanner.ui.navigation
 
 import android.annotation.SuppressLint
-import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -64,15 +63,16 @@ fun MainNavHost(
 
         composable("check") {
             val scanUrl by session.url.collectAsState()
-            CheckScreen(scanUrl) { status, comment ->
-                session.setCheckResult(status, comment) // status: "match" | "mismatch"
+            CheckScreen(scanUrl) { status, comment, newLink ->
+                session.setCheckResult(status, comment)
+                session.setNewLink(newLink)
                 nav.navigate("photo")
             }
         }
 
         composable("photo") {
             PhotoScreen { picked ->
-                session.setPhotos(picked) // List<Uri>
+                session.setPhotos(picked)
                 nav.navigate("defect")
             }
         }
@@ -85,19 +85,20 @@ fun MainNavHost(
         }
 
         composable("result") {
-            val barcode      by session.barcode.collectAsState()
-            val scanUrl      by session.url.collectAsState()
-            val checkStatus  by session.checkStatus.collectAsState()
-            val checkComment by session.checkComment.collectAsState()
-            val photos       by session.photos.collectAsState()
-            val hasDefect    by session.hasDefect.collectAsState()
-            val defectDesc   by session.defectDesc.collectAsState()
+            val barcode       by session.barcode.collectAsState()
+            val scanUrl       by session.url.collectAsState()
+            val checkStatus   by session.checkStatus.collectAsState()
+            val checkComment  by session.checkComment.collectAsState()
+            val newLink       by session.newLink.collectAsState()
+            val photos        by session.photos.collectAsState()
+            val hasDefect     by session.hasDefect.collectAsState()
+            val defectDesc    by session.defectDesc.collectAsState()
 
             ResultScreen(
                 context      = LocalContext.current,
                 barcode      = barcode,
                 scanUrl      = scanUrl,
-                checkResult  = checkStatus to checkComment,
+                checkResult  = Triple(checkStatus, checkComment, newLink),
                 photos       = photos,
                 defectResult = hasDefect to defectDesc,
                 oauthToken   = YandexAuth.token!!

@@ -7,7 +7,7 @@ import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.warehousescanner.data.YandexDiskClient
+import com.example.warehousescanner.data.*
 import kotlinx.coroutines.launch
 
 @Composable
@@ -15,7 +15,7 @@ fun ResultScreen(
     context: Context,
     barcode: String,
     scanUrl: String,
-    checkResult: Pair<String, String>,
+    checkResult: Triple<String, String, String>,
     photos: List<Uri>,
     defectResult: Pair<Boolean, String>,
     oauthToken: String
@@ -31,17 +31,14 @@ fun ResultScreen(
         "mismatch" -> "Не совпадает"
         else       -> checkResult.first
     }
+    val newLink = checkResult.third
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Обзор данных", style = MaterialTheme.typography.h6)
         Text("Штрих-код: $barcode")
         Text("URL: $scanUrl")
         Text("Статус проверки: $statusText")
+        if (newLink.isNotBlank()) Text("Новая ссылка: $newLink")
         if (checkResult.second.isNotBlank()) Text("Комментарий: ${checkResult.second}")
         Text("Фото: ${photos.size} шт.")
         Text("Дефект: ${if (defectResult.first) "Есть" else "Нет"}")
@@ -58,31 +55,38 @@ fun ResultScreen(
                         isLoading = true
                         message = ""
                         try {
-                            val folder = YandexDiskClient.uploadImagesDated(
-                                photos = photos,
-                                context = context,
-                                barcode = barcode
-                            )
-
-                            val safeName = scanUrl
-                                .replace(Regex("[^A-Za-z0-9]"), "_")
-                                .let { if (it.isEmpty()) "file" else it }
-                                .take(100) + ".txt"
-
                             val textContent = buildString {
                                 appendLine("Штрих-код: $barcode")
                                 appendLine("URL: $scanUrl")
                                 appendLine("Статус: $statusText")
-                                if (checkResult.second.isNotBlank())
-                                    appendLine("Комментарий: ${checkResult.second}")
+                                if (newLink.isNotBlank()) appendLine("Новая ссылка: $newLink")
+                                if (checkResult.second.isNotBlank()) appendLine("Комментарий: ${checkResult.second}")
                                 appendLine("Фото: ${photos.size}")
                                 appendLine("Дефект: ${if (defectResult.first) "Да" else "Нет"}")
-                                if (defectResult.first)
-                                    appendLine("Описание дефекта: ${defectResult.second}")
+                                if (defectResult.first) appendLine("Описание дефекта: ${defectResult.second}")
                             }
-                            YandexDiskClient.uploadTextFile("$folder/$safeName", textContent)
 
-                            message = "Отправлено на Яндекс.Диск: $folder"
+                                                        val result = YandexDiskClient.uploadItemBundle(
+                                context = context,
+                                url = if (newLink.isNotBlank()) newLink else scanUrl,
+                                barcode = barcode,
+                                textContent = textContent,
+                                photos = photos
+                            )
+
+
+                            val req = AfterUploadRequest(
+                                barcode  = barcode,
+                                baseLink = scanUrl,
+                                status   = statusText,
+                                newLink  = newLink,
+                                qty      = photos.size,
+                                defects  = if (defectResult.first) defectResult.second else "",
+                                photos   = result.publicPhotoUrls.take(6)
+                            )
+                            GoogleSheetClient.saveAfterUpload(req)
+
+                            message = "Отправлено. Папка: ${result.folder}"
                         } catch (e: Exception) {
                             message = "Ошибка: ${e.localizedMessage}"
                         } finally {
@@ -91,13 +95,9 @@ fun ResultScreen(
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Отправить на Яндекс.Диск")
-            }
+            ) { Text("Отправить") }
         }
 
-        if (message.isNotBlank()) {
-            Text(message, color = MaterialTheme.colors.primary)
-        }
+        if (message.isNotBlank()) Text(message, color = MaterialTheme.colors.primary)
     }
 }

@@ -18,6 +18,9 @@ class SessionViewModel : ViewModel() {
     private val _checkComment = MutableStateFlow("")
     val checkComment: StateFlow<String> = _checkComment
 
+    private val _newLink = MutableStateFlow("")
+    val newLink: StateFlow<String> = _newLink
+
     private val _photos = MutableStateFlow<List<Uri>>(emptyList())
     val photos: StateFlow<List<Uri>> = _photos
 
@@ -27,9 +30,10 @@ class SessionViewModel : ViewModel() {
     private val _defectDesc = MutableStateFlow("")
     val defectDesc: StateFlow<String> = _defectDesc
 
-    fun setBarcode(value: String)             { _barcode.value = value }
-    fun setUrl(value: String)                 { _url.value = value }
+    fun setBarcode(value: String)               { _barcode.value = value }
+    fun setUrl(value: String)                   { _url.value = value }
     fun setCheckResult(status: String, c: String) { _checkStatus.value = status; _checkComment.value = c }
-    fun setPhotos(list: List<Uri>)            { _photos.value = list }
-    fun setDefect(has: Boolean, desc: String) { _hasDefect.value = has; _defectDesc.value = desc }
+    fun setNewLink(value: String)               { _newLink.value = value }
+    fun setPhotos(list: List<Uri>)              { _photos.value = list }
+    fun setDefect(has: Boolean, desc: String)   { _hasDefect.value = has; _defectDesc.value = desc }
 }

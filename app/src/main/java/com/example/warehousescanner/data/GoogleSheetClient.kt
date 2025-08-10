@@ -12,7 +12,7 @@ object GoogleSheetClient {
         scriptUrl = scriptExecUrl
         apiKey = key
         api = Retrofit.Builder()
-            .baseUrl("https://script.google.com/") // базовый домен, сам вызов — с @Url
+            .baseUrl("https://script.google.com/")
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(GoogleSheetApi::class.java)
@@ -22,5 +22,8 @@ object GoogleSheetClient {
         api.lookup(scriptUrl, barcode, apiKey)
 
     suspend fun save(barcode: String, link: String) =
-        api.save(scriptUrl, apiKey, SaveRequest(barcode, link))
+        api.save(scriptUrl, apiKey, SaveRequest(barcode = barcode, link = link))
+
+    suspend fun saveAfterUpload(req: AfterUploadRequest) =
+        api.saveAfterUpload(scriptUrl, apiKey, req)
 }
