@@ -2,6 +2,7 @@ package com.example.warehousescanner.data
 
 import android.content.Context
 import android.net.Uri
+import com.google.gson.Gson
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -36,46 +37,43 @@ object YandexDiskClient {
         api.uploadFile(href, body)
     }
 
-    private fun safeNameFromUrl(url: String, maxLen: Int = 80): String =
-        url.lowercase(Locale.US).replace(Regex("[^a-z0-9]+"), "_").trim('_').let {
-            if (it.isEmpty()) "item" else it
-        }.take(maxLen)
-
     private fun todayFolder(): String {
         val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
         return "Warehouse/$date"
     }
 
-    private suspend fun ensureDateUrlFolder(url: String): String {
-        val rootDate = todayFolder()
-        val urlFolder = safeNameFromUrl(url)
+    private suspend fun ensureItemFolder(barcode: String): String {
+        val dateRoot = todayFolder()
         ensureFolder("Warehouse")
-        ensureFolder(rootDate)
-        val full = "$rootDate/$urlFolder"
-        ensureFolder(full)
-        return full
+        ensureFolder(dateRoot)
+        val itemFolder = "$dateRoot/${barcode}_folder"
+        ensureFolder(itemFolder)
+        return itemFolder
     }
 
-    suspend fun uploadItemBundle(
+    /** Загружает metadata.json и фото в папку Warehouse/<date>/<BARCODE>_folder/ */
+    suspend fun uploadItemBundleJson(
         context: Context,
-        url: String,
         barcode: String,
-        textContent: String,
+        metadata: Any,
         photos: List<Uri>
     ): YDUploadResult {
-        val folder = ensureDateUrlFolder(url)
+        val folder = ensureItemFolder(barcode)
 
-        val txtName = "${safeNameFromUrl(url)}.txt"
-        uploadBytes("$folder/$txtName", textContent.toByteArray(Charsets.UTF_8))
+        // 1) metadata.json
+        val json = Gson().toJson(metadata).toByteArray(Charsets.UTF_8)
+        uploadBytes("$folder/metadata.json", json)
 
+        // 2) фото: BARCODE_#.jpg + публикация
         val publicLinks = mutableListOf<String>()
-        photos.forEachIndexed { index, uri ->
+        photos.forEachIndexed { i, uri ->
             context.contentResolver.openInputStream(uri)?.use { stream ->
                 val bytes = stream.readBytes()
-                val photoName = "${barcode}_${index + 1}.jpg"
+                val photoName = "${barcode}_${i + 1}.jpg"
                 val path = "$folder/$photoName"
                 uploadBytes(path, bytes)
-                      runCatching { api.publish(authHeader, path) }
+                // опубликовать и получить public_url (не обязательно, но полезно)
+                runCatching { api.publish(authHeader, path) }
                 val meta = runCatching { api.getResource(authHeader, path) }.getOrNull()
                 meta?.publicUrl?.let { publicLinks.add(it) }
             }

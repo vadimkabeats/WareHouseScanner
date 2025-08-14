@@ -78,8 +78,9 @@ fun MainNavHost(
         }
 
         composable("defect") {
-            DefectScreen { hasDefect, desc ->
+            DefectScreen { hasDefect, desc, qty ->
                 session.setDefect(hasDefect, desc)
+                session.setQuantity(qty)
                 nav.navigate("result")
             }
         }
@@ -93,6 +94,7 @@ fun MainNavHost(
             val photos        by session.photos.collectAsState()
             val hasDefect     by session.hasDefect.collectAsState()
             val defectDesc    by session.defectDesc.collectAsState()
+            val quantity      by session.quantity.collectAsState()
 
             ResultScreen(
                 context      = LocalContext.current,
@@ -101,6 +103,7 @@ fun MainNavHost(
                 checkResult  = Triple(checkStatus, checkComment, newLink),
                 photos       = photos,
                 defectResult = hasDefect to defectDesc,
+                quantity     = quantity,
                 oauthToken   = YandexAuth.token!!
             )
         }

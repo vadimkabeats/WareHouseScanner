@@ -15,9 +15,10 @@ fun ResultScreen(
     context: Context,
     barcode: String,
     scanUrl: String,
-    checkResult: Triple<String, String, String>,
+    checkResult: Triple<String, String, String>, // status, comment, newLink
     photos: List<Uri>,
     defectResult: Pair<Boolean, String>,
+    quantity: Int,
     oauthToken: String
 ) {
     LaunchedEffect(oauthToken) { YandexDiskClient.init(oauthToken) }
@@ -40,6 +41,7 @@ fun ResultScreen(
         Text("Статус проверки: $statusText")
         if (newLink.isNotBlank()) Text("Новая ссылка: $newLink")
         if (checkResult.second.isNotBlank()) Text("Комментарий: ${checkResult.second}")
+        Text("Количество: $quantity")
         Text("Фото: ${photos.size} шт.")
         Text("Дефект: ${if (defectResult.first) "Есть" else "Нет"}")
         if (defectResult.first) Text("Описание дефекта: ${defectResult.second}")
@@ -55,38 +57,38 @@ fun ResultScreen(
                         isLoading = true
                         message = ""
                         try {
-                            val textContent = buildString {
-                                appendLine("Штрих-код: $barcode")
-                                appendLine("URL: $scanUrl")
-                                appendLine("Статус: $statusText")
-                                if (newLink.isNotBlank()) appendLine("Новая ссылка: $newLink")
-                                if (checkResult.second.isNotBlank()) appendLine("Комментарий: ${checkResult.second}")
-                                appendLine("Фото: ${photos.size}")
-                                appendLine("Дефект: ${if (defectResult.first) "Да" else "Нет"}")
-                                if (defectResult.first) appendLine("Описание дефекта: ${defectResult.second}")
-                            }
-
-                                                        val result = YandexDiskClient.uploadItemBundle(
-                                context = context,
-                                url = if (newLink.isNotBlank()) newLink else scanUrl,
-                                barcode = barcode,
-                                textContent = textContent,
-                                photos = photos
+                            val meta = mapOf(
+                                "barcode" to barcode,
+                                "url" to scanUrl,
+                                "status" to statusText,
+                                "newLink" to newLink,
+                                "comment" to checkResult.second,
+                                "quantity" to quantity,
+                                "photosCount" to photos.size,
+                                "defect" to defectResult.first,
+                                "defectDescription" to defectResult.second,
+                                "photoFiles" to (1..photos.size).map { i -> "${barcode}_$i.jpg" }
                             )
 
+                            val yd = YandexDiskClient.uploadItemBundleJson(
+                                context = context,
+                                barcode = barcode,
+                                metadata = meta,
+                                photos = photos
+                            )
 
                             val req = AfterUploadRequest(
                                 barcode  = barcode,
                                 baseLink = scanUrl,
                                 status   = statusText,
                                 newLink  = newLink,
-                                qty      = photos.size,
+                                qty      = quantity, // <-- отправляем введённое количество
                                 defects  = if (defectResult.first) defectResult.second else "",
-                                photos   = result.publicPhotoUrls.take(6)
+                                photos   = yd.publicPhotoUrls.take(6)
                             )
                             GoogleSheetClient.saveAfterUpload(req)
 
-                            message = "Отправлено. Папка: ${result.folder}"
+                            message = "Отправлено: ${yd.folder}"
                         } catch (e: Exception) {
                             message = "Ошибка: ${e.localizedMessage}"
                         } finally {
@@ -95,7 +97,7 @@ fun ResultScreen(
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Отправить") }
+            ) { Text("Отправить на Яндекс.Диск") }
         }
 
         if (message.isNotBlank()) Text(message, color = MaterialTheme.colors.primary)

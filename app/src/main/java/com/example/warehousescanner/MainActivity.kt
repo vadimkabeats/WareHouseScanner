@@ -62,7 +62,6 @@ class MainActivity : ComponentActivity() {
                                 CircularProgressIndicator()
                             }
                             linkState!!.isNotEmpty() -> {
-
                                 nav.currentBackStackEntry?.savedStateHandle?.set("scanUrl", linkState!!)
                                 nav.navigate("check")
                             }
@@ -72,7 +71,6 @@ class MainActivity : ComponentActivity() {
                                     initialLink = "",
                                     onSave = { newLink ->
                                         gsVm.save(barcode, newLink)
-
                                         nav.currentBackStackEntry?.savedStateHandle?.set("scanUrl", newLink)
                                         nav.navigate("check")
                                     }
@@ -82,7 +80,6 @@ class MainActivity : ComponentActivity() {
                     }
 
                     composable("check") {
-
                         val scanUrl = nav
                             .getBackStackEntry("lookup")
                             .savedStateHandle
@@ -90,7 +87,9 @@ class MainActivity : ComponentActivity() {
                         nav.currentBackStackEntry?.savedStateHandle?.set("scanUrl", scanUrl)
 
                         CheckScreen(scanUrl) { status, comment, newLink ->
-                            nav.currentBackStackEntry?.savedStateHandle?.set("checkResult", Triple(status, comment, newLink))
+                            nav.currentBackStackEntry
+                                ?.savedStateHandle
+                                ?.set("checkResult", Triple(status, comment, newLink))
                             nav.navigate("photo")
                         }
                     }
@@ -98,17 +97,19 @@ class MainActivity : ComponentActivity() {
                     composable("photo") {
                         PhotoScreen { photos ->
                             val list = ArrayList(photos.map { it.toString() })
-
                             nav.currentBackStackEntry?.savedStateHandle?.set("photos", list)
                             nav.navigate("defect")
                         }
                     }
 
                     composable("defect") {
-                        DefectScreen { hasDefect, desc ->
+                        DefectScreen { hasDefect, desc, qty ->
                             nav.currentBackStackEntry
                                 ?.savedStateHandle
                                 ?.set("defectResult", hasDefect to desc)
+                            nav.currentBackStackEntry
+                                ?.savedStateHandle
+                                ?.set("quantity", qty)
                             nav.navigate("result")
                         }
                     }
@@ -130,7 +131,6 @@ class MainActivity : ComponentActivity() {
                             .get<Triple<String, String, String>>("checkResult")
                             ?: Triple("", "", "")
 
-
                         val photosStrings = nav
                             .getBackStackEntry("photo")
                             .savedStateHandle
@@ -142,14 +142,20 @@ class MainActivity : ComponentActivity() {
                             .savedStateHandle
                             .get<Pair<Boolean, String>>("defectResult") ?: (false to "")
 
+                        val quantity = nav
+                            .getBackStackEntry("defect")
+                            .savedStateHandle
+                            .get<Int>("quantity") ?: 1
+
                         ResultScreen(
-                            context     = LocalContext.current,
-                            barcode     = barcode,
-                            scanUrl     = scanUrl,
-                            checkResult = checkResult,
-                            photos      = photos,
-                            defectResult= defectResult,
-                            oauthToken  = oauthToken
+                            context      = LocalContext.current,
+                            barcode      = barcode,
+                            scanUrl      = scanUrl,
+                            checkResult  = checkResult,
+                            photos       = photos,
+                            defectResult = defectResult,
+                            quantity     = quantity,
+                            oauthToken   = oauthToken
                         )
                     }
                 }

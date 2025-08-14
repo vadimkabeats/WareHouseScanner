@@ -30,10 +30,14 @@ class SessionViewModel : ViewModel() {
     private val _defectDesc = MutableStateFlow("")
     val defectDesc: StateFlow<String> = _defectDesc
 
+    private val _quantity = MutableStateFlow(1)
+    val quantity: StateFlow<Int> = _quantity
+
     fun setBarcode(value: String)               { _barcode.value = value }
     fun setUrl(value: String)                   { _url.value = value }
     fun setCheckResult(status: String, c: String) { _checkStatus.value = status; _checkComment.value = c }
     fun setNewLink(value: String)               { _newLink.value = value }
     fun setPhotos(list: List<Uri>)              { _photos.value = list }
     fun setDefect(has: Boolean, desc: String)   { _hasDefect.value = has; _defectDesc.value = desc }
+    fun setQuantity(qty: Int)                   { _quantity.value = qty.coerceAtLeast(1) }
 }
