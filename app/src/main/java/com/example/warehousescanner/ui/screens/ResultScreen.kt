@@ -9,6 +9,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.warehousescanner.data.*
 import kotlinx.coroutines.launch
+import kotlin.math.max
+import kotlin.math.roundToInt
 
 @Composable
 fun ResultScreen(
@@ -19,6 +21,8 @@ fun ResultScreen(
     photos: List<Uri>,
     defectResult: Pair<Boolean, String>,
     quantity: Int,
+    userFullName: String,
+    scanStartMs: Long,
     oauthToken: String
 ) {
     LaunchedEffect(oauthToken) { YandexDiskClient.init(oauthToken) }
@@ -57,6 +61,9 @@ fun ResultScreen(
                         isLoading = true
                         message = ""
                         try {
+                            val nowMs = System.currentTimeMillis()
+                            val durationSec = max(0, ((nowMs - scanStartMs) / 1000.0).roundToInt())
+
                             val meta = mapOf(
                                 "barcode" to barcode,
                                 "url" to scanUrl,
@@ -67,6 +74,8 @@ fun ResultScreen(
                                 "photosCount" to photos.size,
                                 "defect" to defectResult.first,
                                 "defectDescription" to defectResult.second,
+                                "user" to userFullName,
+                                "durationSec" to durationSec,
                                 "photoFiles" to (1..photos.size).map { i -> "${barcode}_$i.jpg" }
                             )
 
@@ -78,13 +87,15 @@ fun ResultScreen(
                             )
 
                             val req = AfterUploadRequest(
-                                barcode  = barcode,
-                                baseLink = scanUrl,
-                                status   = statusText,
-                                newLink  = newLink,
-                                qty      = quantity, // <-- отправляем введённое количество
-                                defects  = if (defectResult.first) defectResult.second else "",
-                                photos   = yd.publicPhotoUrls.take(6)
+                                user      = userFullName,
+                                barcode   = barcode,
+                                baseLink  = scanUrl,
+                                status    = statusText,
+                                newLink   = newLink,
+                                qty       = quantity,
+                                durationSec = durationSec,
+                                defects   = if (defectResult.first) defectResult.second else "",
+                                photos    = yd.publicPhotoUrls.take(6)
                             )
                             GoogleSheetClient.saveAfterUpload(req)
 

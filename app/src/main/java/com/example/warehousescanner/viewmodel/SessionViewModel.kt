@@ -33,11 +33,16 @@ class SessionViewModel : ViewModel() {
     private val _quantity = MutableStateFlow(1)
     val quantity: StateFlow<Int> = _quantity
 
-    fun setBarcode(value: String)               { _barcode.value = value }
-    fun setUrl(value: String)                   { _url.value = value }
+    private val _scanStartMs = MutableStateFlow(0L)
+    val scanStartMs: StateFlow<Long> = _scanStartMs
+
+    fun setBarcode(value: String) { _barcode.value = value }
+    fun setUrl(value: String) { _url.value = value }
     fun setCheckResult(status: String, c: String) { _checkStatus.value = status; _checkComment.value = c }
-    fun setNewLink(value: String)               { _newLink.value = value }
-    fun setPhotos(list: List<Uri>)              { _photos.value = list }
-    fun setDefect(has: Boolean, desc: String)   { _hasDefect.value = has; _defectDesc.value = desc }
-    fun setQuantity(qty: Int)                   { _quantity.value = qty.coerceAtLeast(1) }
+    fun setNewLink(value: String) { _newLink.value = value }
+    fun setPhotos(list: List<Uri>) { _photos.value = list }
+    fun setDefect(has: Boolean, desc: String) { _hasDefect.value = has; _defectDesc.value = desc }
+    fun setQuantity(qty: Int) { _quantity.value = qty.coerceAtLeast(1) }
+
+    fun markScanStart() { _scanStartMs.value = System.currentTimeMillis() }
 }

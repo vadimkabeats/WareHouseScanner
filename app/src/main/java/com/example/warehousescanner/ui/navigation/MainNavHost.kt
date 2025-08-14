@@ -17,6 +17,7 @@ import com.example.warehousescanner.YandexAuth
 import com.example.warehousescanner.ui.screens.*
 import com.example.warehousescanner.viewmodel.GoogleSheetViewModel
 import com.example.warehousescanner.viewmodel.SessionViewModel
+import com.example.warehousescanner.viewmodel.UserViewModel
 
 @SuppressLint("ContextCastToActivity")
 @Composable
@@ -26,12 +27,15 @@ fun MainNavHost(
 ) {
     val activity = LocalContext.current as ComponentActivity
     val session: SessionViewModel = viewModel(activity)
+    val userVm: UserViewModel = viewModel(activity)
+    val fullName by userVm.fullName.collectAsState()
 
     NavHost(navController = nav, startDestination = "scan") {
 
         composable("scan") {
             ScanScreen { code ->
                 session.setBarcode(code)
+                session.markScanStart() // старт таймера
                 nav.navigate("lookup")
             }
         }
@@ -42,14 +46,12 @@ fun MainNavHost(
             val linkState by gsVm.linkState.collectAsState()
 
             when (linkState) {
-                null -> Box(Modifier.fillMaxSize()) {
-                    CircularProgressIndicator(Modifier.align(Alignment.Center))
-                }
+                null -> Box(Modifier.fillMaxSize()) { CircularProgressIndicator(Modifier.align(Alignment.Center)) }
                 "" -> LinkEditScreen(
                     barcode = barcode,
                     initialLink = "",
                     onSave = { newLink ->
-                        gsVm.save(barcode, newLink)
+                        gsVm.save(barcode, newLink, fullName) // пишем ФИО в лист1
                         session.setUrl(newLink)
                         nav.navigate("check")
                     }
@@ -95,6 +97,7 @@ fun MainNavHost(
             val hasDefect     by session.hasDefect.collectAsState()
             val defectDesc    by session.defectDesc.collectAsState()
             val quantity      by session.quantity.collectAsState()
+            val scanStartMs   by session.scanStartMs.collectAsState()
 
             ResultScreen(
                 context      = LocalContext.current,
@@ -104,6 +107,8 @@ fun MainNavHost(
                 photos       = photos,
                 defectResult = hasDefect to defectDesc,
                 quantity     = quantity,
+                userFullName = fullName,
+                scanStartMs  = scanStartMs,
                 oauthToken   = YandexAuth.token!!
             )
         }

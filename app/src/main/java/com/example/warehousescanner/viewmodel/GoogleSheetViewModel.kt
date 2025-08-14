@@ -16,15 +16,15 @@ class GoogleSheetViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch {
             _linkState.value = null
             runCatching { GoogleSheetClient.lookup(barcode) }
-                .onSuccess { resp -> _linkState.value = if (resp.found) resp.link ?: "" else "" }
+                .onSuccess { r -> _linkState.value = if (r.found) r.link.orEmpty() else "" }
                 .onFailure { _linkState.value = "" }
         }
     }
 
-    fun save(barcode: String, link: String) {
+    fun save(barcode: String, link: String, user: String) {
         viewModelScope.launch {
             _linkState.value = null
-            runCatching { GoogleSheetClient.save(barcode, link) }
+            runCatching { GoogleSheetClient.save(barcode, link, user) }
                 .onSuccess { _linkState.value = link }
                 .onFailure { _linkState.value = "" }
         }
