@@ -1,3 +1,4 @@
+// viewmodel/GoogleSheetViewModel.kt
 package com.example.warehousescanner.viewmodel
 
 import android.app.Application
@@ -9,24 +10,38 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 class GoogleSheetViewModel(application: Application) : AndroidViewModel(application) {
+
     private val _linkState = MutableStateFlow<String?>(null)
     val linkState: StateFlow<String?> = _linkState
+
+
+    private val _trackState = MutableStateFlow<String?>(null)
+    val trackState: StateFlow<String?> = _trackState
 
     fun lookup(barcode: String) {
         viewModelScope.launch {
             _linkState.value = null
-            runCatching { GoogleSheetClient.lookup(barcode) }
-                .onSuccess { r -> _linkState.value = if (r.found) r.link.orEmpty() else "" }
-                .onFailure { _linkState.value = "" }
+            try {
+                val r = GoogleSheetClient.lookup(barcode)
+                _linkState.value = if (r.found) r.link.orEmpty() else ""
+            } catch (_: Exception) {
+                _linkState.value = ""
+            }
         }
     }
 
-    fun save(barcode: String, link: String, user: String) {
+    fun lookupTrack(barcode: String) {
         viewModelScope.launch {
-            _linkState.value = null
-            runCatching { GoogleSheetClient.save(barcode, link, user) }
-                .onSuccess { _linkState.value = link }
-                .onFailure { _linkState.value = "" }
+            _trackState.value = null
+            try {
+                val r = GoogleSheetClient.lookupTrack(barcode)
+                _trackState.value = if (r.ok && r.found && !r.track.isNullOrBlank()) r.track else ""
+            } catch (_: Exception) {
+                _trackState.value = ""
+            }
         }
     }
+
+    fun reset() { _linkState.value = null }
+    fun resetTrack() { _trackState.value = null }
 }

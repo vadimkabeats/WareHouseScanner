@@ -5,6 +5,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -15,6 +16,7 @@ fun DefectScreen(
 ) {
     var hasDefect by rememberSaveable { mutableStateOf(false) }
     var defectDesc by rememberSaveable { mutableStateOf("") }
+
     var qtyText by rememberSaveable { mutableStateOf("1") }
 
     fun qtyInt(): Int = qtyText.toIntOrNull()?.coerceAtLeast(1) ?: 1
@@ -25,7 +27,7 @@ fun DefectScreen(
     ) {
         Text("Сведения о состоянии", style = MaterialTheme.typography.h6)
 
-        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = hasDefect, onCheckedChange = { hasDefect = it })
             Spacer(Modifier.width(8.dp))
             Text("Есть дефект")
@@ -43,11 +45,12 @@ fun DefectScreen(
         OutlinedTextField(
             value = qtyText,
             onValueChange = { txt ->
-                // Разрешаем только цифры
-                if (txt.all { it.isDigit() }) qtyText = txt
-                if (qtyText.isBlank()) qtyText = "1"
+                if (txt.isEmpty() || txt.all { it.isDigit() }) {
+                    qtyText = txt
+                }
             },
-            label = { Text("Количество") },
+            label = { Text("Количество товаров") },
+            singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth()
         )

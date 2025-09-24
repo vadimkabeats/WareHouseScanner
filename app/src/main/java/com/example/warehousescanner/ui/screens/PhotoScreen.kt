@@ -40,22 +40,22 @@ fun PhotoScreen(onNext: (List<Uri>) -> Unit) {
     val scope = rememberCoroutineScope()
     val photos = remember { mutableStateListOf<Uri>() }
 
-    // Нижний лист (выбор источникa)
+
     val sheetState = rememberModalBottomSheetState(
         initialValue = ModalBottomSheetValue.Hidden,
         skipHalfExpanded = true
     )
 
-    // Pending URI для камеры (переживает рекомпозиции/повороты)
+
     var pendingCameraUriStr by rememberSaveable { mutableStateOf<String?>(null) }
 
-    // Камера через ACTION_IMAGE_CAPTURE с ручной выдачей прав на URI
+
     val cameraLauncher = rememberLauncherForActivityResult(StartActivityForResult()) { res: ActivityResult ->
         val u = pendingCameraUriStr?.let(Uri::parse)
         if (res.resultCode == Activity.RESULT_OK && u != null) {
             if (photos.size < 6) photos.add(u)
         }
-        // Отзываем временные права у всех получателей
+
         if (u != null) {
             context.revokeUriPermission(
                 u,
@@ -75,7 +75,7 @@ fun PhotoScreen(onNext: (List<Uri>) -> Unit) {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
 
-        // Выдаём временные права всем обработчикам интента камеры
+
         val resInfo = ctx.packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
         for (resolveInfo in resInfo) {
             val pkg = resolveInfo.activityInfo.packageName
@@ -88,7 +88,7 @@ fun PhotoScreen(onNext: (List<Uri>) -> Unit) {
         cameraLauncher.launch(intent)
     }
 
-    // Галерея: мультивыбор
+
     val pickMultiple = rememberLauncherForActivityResult(GetMultipleContents()) { uris ->
         if (!uris.isNullOrEmpty()) {
             val left = 6 - photos.size
@@ -138,7 +138,6 @@ fun PhotoScreen(onNext: (List<Uri>) -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Плитка "Добавить"
                 item {
                     Box(
                         Modifier
@@ -154,7 +153,6 @@ fun PhotoScreen(onNext: (List<Uri>) -> Unit) {
                     }
                 }
 
-                // Превью выбранных фото
                 items(photos) { u ->
                     Box(Modifier.aspectRatio(1f)) {
                         AsyncImage(model = u, contentDescription = null, modifier = Modifier.fillMaxSize())

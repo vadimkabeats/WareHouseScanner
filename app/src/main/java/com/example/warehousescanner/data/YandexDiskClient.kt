@@ -51,7 +51,7 @@ object YandexDiskClient {
         return itemFolder
     }
 
-    /** Загружает metadata.json и фото в папку Warehouse/<date>/<BARCODE>_folder/ */
+
     suspend fun uploadItemBundleJson(
         context: Context,
         barcode: String,
@@ -60,11 +60,11 @@ object YandexDiskClient {
     ): YDUploadResult {
         val folder = ensureItemFolder(barcode)
 
-        // 1) metadata.json
+
         val json = Gson().toJson(metadata).toByteArray(Charsets.UTF_8)
         uploadBytes("$folder/metadata.json", json)
 
-        // 2) фото: BARCODE_#.jpg + публикация
+
         val publicLinks = mutableListOf<String>()
         photos.forEachIndexed { i, uri ->
             context.contentResolver.openInputStream(uri)?.use { stream ->
