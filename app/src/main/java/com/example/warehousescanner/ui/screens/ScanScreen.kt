@@ -46,15 +46,17 @@ private fun Context.findActivity(): Activity? = when (this) {
 fun ScanScreen(
     instanceKey: String = "",
     allowManualInput: Boolean = true,
-    inputHint: String? = null,
-    validator: ((String) -> String?)? = null,
+    inputHint: String? = null,                        // подсказка под полем ручного ввода
+    validator: ((String) -> String?)? = null,         // вернуть null = ок, иначе текст ошибки
+    torchOn: Boolean = false,                         // уже был у тебя — оставляем
+    manualAllowSpaces: Boolean = false,               // НОВОЕ: разрешить пробелы в ручном вводе
     onNext: (String) -> Unit
 ) {
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
     val lifecycleOwner = LocalLifecycleOwner.current
 
-
+    // ---------- Permission ----------
     var hasPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
@@ -83,6 +85,7 @@ fun ScanScreen(
         }
     }
 
+    // ---------- Manual input ----------
     var showManual by rememberSaveable(instanceKey) { mutableStateOf(false) }
     var manualText by rememberSaveable(instanceKey) { mutableStateOf("") }
     var manualError by rememberSaveable(instanceKey) { mutableStateOf<String?>(null) }
@@ -100,6 +103,7 @@ fun ScanScreen(
         showManual = true
     }
 
+    // ---------- Camera Components ----------
     val previewView = remember(instanceKey) {
         Log.d("ScanScreen", "Creating PreviewView for instanceKey: $instanceKey")
         androidx.camera.view.PreviewView(context).apply {
@@ -113,9 +117,7 @@ fun ScanScreen(
         androidx.camera.view.LifecycleCameraController(context)
     }
 
-    val analysisExecutor = remember(instanceKey) {
-        Executors.newSingleThreadExecutor()
-    }
+    val analysisExecutor = remember(instanceKey) { Executors.newSingleThreadExecutor() }
 
     val scanner = remember(instanceKey) {
         val opts = BarcodeScannerOptions.Builder()
@@ -124,6 +126,7 @@ fun ScanScreen(
         BarcodeScanning.getClient(opts)
     }
 
+    // ---------- Camera Setup ----------
     LaunchedEffect(hasPermission, instanceKey) {
         if (!hasPermission) return@LaunchedEffect
 
@@ -131,32 +134,22 @@ fun ScanScreen(
         Log.d("ScanScreen", "Setting up camera for instanceKey: $instanceKey")
 
         try {
-
             runCatching { controller.clearImageAnalysisAnalyzer() }
             runCatching { controller.unbind() }
             runCatching { previewView.controller = null }
 
-
             kotlinx.coroutines.delay(1000)
-
 
             controller.cameraSelector = androidx.camera.core.CameraSelector.DEFAULT_BACK_CAMERA
             controller.setEnabledUseCases(
                 androidx.camera.view.CameraController.IMAGE_ANALYSIS
             )
 
-
             controller.setImageAnalysisAnalyzer(analysisExecutor) { proxy ->
                 try {
-                    if (scannedCode != null) {
-                        proxy.close()
-                        return@setImageAnalysisAnalyzer
-                    }
+                    if (scannedCode != null) { proxy.close(); return@setImageAnalysisAnalyzer }
 
-                    val media = proxy.image ?: run {
-                        proxy.close(); return@setImageAnalysisAnalyzer
-                    }
-
+                    val media = proxy.image ?: run { proxy.close(); return@setImageAnalysisAnalyzer }
                     val image = InputImage.fromMediaImage(media, proxy.imageInfo.rotationDegrees)
                     scanner.process(image)
                         .addOnSuccessListener { codes ->
@@ -180,6 +173,9 @@ fun ScanScreen(
                 }
             }
 
+            // Включаем/выключаем фонарик по флагу torchOn (если камера позволяет)
+            runCatching { controller.enableTorch(torchOn) }
+
             previewView.controller = controller
             controller.bindToLifecycle(lifecycleOwner)
 
@@ -188,6 +184,11 @@ fun ScanScreen(
             Log.e("ScanScreen", "Camera setup failed for instanceKey: $instanceKey", t)
             initError = t.localizedMessage ?: "Не удалось инициализировать камеру"
         }
+    }
+
+    // Переключение фонарика на лету
+    LaunchedEffect(torchOn) {
+        runCatching { controller.enableTorch(torchOn) }
     }
 
     // Cleanup
@@ -270,7 +271,7 @@ fun ScanScreen(
             }
 
             else -> {
-
+                // Камера
                 AndroidView(
                     modifier = Modifier
                         .fillMaxSize()
@@ -285,7 +286,7 @@ fun ScanScreen(
                     }
                 )
 
-
+                // Ошибка валидации — всплывашка поверх камеры
                 if (scanError != null) {
                     Box(
                         Modifier
@@ -311,7 +312,7 @@ fun ScanScreen(
                     }
                 }
 
-
+                // Кнопка "Ввести вручную" — внизу по центру поверх камеры
                 if (allowManualInput && scannedCode == null) {
                     Button(
                         onClick = { openManual() },
@@ -322,7 +323,7 @@ fun ScanScreen(
                     ) { Text("Ввести вручную") }
                 }
 
-
+                // Результат сканирования (оверлей)
                 scannedCode?.let { code ->
                     Surface(
                         modifier = Modifier.fillMaxSize(),
@@ -353,26 +354,34 @@ fun ScanScreen(
         if (showManual && allowManualInput) {
             AlertDialog(
                 onDismissRequest = { showManual = false },
-                title = { Text("Ручной ввод штрих-кода") },
+                title = { Text("Ручной ввод") },
                 text = {
                     Column {
                         OutlinedTextField(
                             value = manualText,
                             onValueChange = { txt ->
-
-                                val cleaned = txt.replace(Regex("\\s+"), "")
+                                // НОВОЕ: если разрешены пробелы — удаляем только переводы строк,
+                                // иначе убираем любые пробелы, как раньше.
+                                val cleaned = if (manualAllowSpaces)
+                                    txt.replace(Regex("[\\r\\n]+"), "")
+                                else
+                                    txt.replace(Regex("\\s+"), "")
                                 manualText = cleaned
                                 manualError = null
                             },
                             singleLine = true,
-                            placeholder = { Text("Например: RETS00024185958LPB") },
+                            placeholder = { Text(inputHint ?: "Введите код") },
                             isError = manualError != null,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                             modifier = Modifier.fillMaxWidth()
                         )
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            text = manualError ?: (inputHint ?: "Разрешены любые символы без пробелов. До 64 знаков."),
+                            text = manualError ?: (inputHint ?: if (manualAllowSpaces)
+                                "Можно вводить с пробелами"
+                            else
+                                "Разрешены любые символы без пробелов. До 64 знаков."
+                                    ),
                             color = if (manualError != null)
                                 MaterialTheme.colors.error
                             else
@@ -383,8 +392,7 @@ fun ScanScreen(
                 },
                 confirmButton = {
                     Button(onClick = {
-                        manualError = validateManualCommon(manualText)
-                            ?: validator?.invoke(manualText)
+                        manualError = validateManualCommon(manualText) ?: validator?.invoke(manualText)
                         if (manualError == null) {
                             showManual = false
                             onNext(manualText.trim())

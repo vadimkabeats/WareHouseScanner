@@ -11,21 +11,15 @@ import java.io.IOException
 import java.net.SocketTimeoutException
 import java.util.concurrent.TimeUnit
 
-private class RetryOnTimeoutInterceptor(
-    private val retries: Int = 1
-) : Interceptor {
+private class RetryOnTimeoutInterceptor(private val retries: Int = 1) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         var tryCount = 0
         var lastEx: IOException? = null
         while (tryCount <= retries) {
-            try {
-                return chain.proceed(chain.request())
-            } catch (e: IOException) {
+            try { return chain.proceed(chain.request()) }
+            catch (e: IOException) {
                 lastEx = e
-                if (e is SocketTimeoutException && tryCount < retries) {
-                    tryCount++
-                    continue
-                }
+                if (e is SocketTimeoutException && tryCount < retries) { tryCount++; continue }
                 throw e
             }
         }
@@ -42,9 +36,7 @@ object GoogleSheetClient {
         scriptUrl = scriptExecUrl
         apiKey = key
 
-        val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
-        }
+        val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY }
 
         val ok = OkHttpClient.Builder()
             .addInterceptor(logging)
@@ -84,5 +76,29 @@ object GoogleSheetClient {
     suspend fun scanExists(barcode: String): Boolean {
         val resp = api.scanExists(scriptUrl, apiKey, ScanExistsRequest(barcode = barcode))
         return resp.ok && (resp.exists == true)
+    }
+
+    /* ---- Возвраты (ОБНОВЛЕНО) ---- */
+
+    /** По dispatchNumber находим barcode (для печати). */
+    suspend fun returnLookup(dispatchNumber: String): ReturnLookupResponse =
+        api.returnLookup(scriptUrl, apiKey, ReturnLookupRequest(dispatchNumber = dispatchNumber))
+
+    /** Записать описание дефекта и ссылки на фото в строку с данным dispatchNumber. */
+    suspend fun saveReturn(
+        user: String,
+        dispatchNumber: String,
+        barcode: String,
+        defectDesc: String,
+        photoLinks: List<String>
+    ): SaveResponse {
+        val body = SaveReturnRequest(
+            user = user,
+            dispatchNumber = dispatchNumber,
+            barcode = barcode,
+            defectDesc = defectDesc,
+            photos = photoLinks
+        )
+        return api.saveReturn(scriptUrl, apiKey, body)
     }
 }

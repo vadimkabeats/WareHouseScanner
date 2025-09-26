@@ -1,11 +1,15 @@
 package com.example.warehousescanner.data
 
+import com.google.gson.annotations.SerializedName
+import okhttp3.RequestBody
+import okhttp3.ResponseBody
 import retrofit2.http.*
 
-data class LookupResponse(val found: Boolean, val link: String?)
-data class SaveResponse(val ok: Boolean?, val updated: Boolean? = null)
+/* ---------- Основные запросы (как были) ---------- */
 
-/* ---------- AfterUpload ---------- */
+data class LookupResponse(val found: Boolean, val link: String?)
+data class SaveResponse(val ok: Boolean?, val updated: Boolean? = null, val error: String? = null)
+
 data class AfterUploadRequest(
     val mode: String = "afterUpload",
     val user: String,
@@ -19,11 +23,9 @@ data class AfterUploadRequest(
     val photos: List<String>
 )
 
-/* ---------- Track lookup ---------- */
 data class TrackLookupRequest(
     val mode: String = "track",
     val barcode: String,
-    // ВАЖНО: корректный GID листа «Этикетки»
     val gid: Long = 522894316L
 )
 
@@ -32,10 +34,8 @@ data class TrackLookupResponse(
     val found: Boolean,
     val track: String? = null,
     val full: String? = null,
-    val multi: Boolean? = null,
     val error: String? = null
 )
-
 
 data class PutAwayRequest(
     val mode: String = "putAway",
@@ -45,7 +45,6 @@ data class PutAwayRequest(
     val durationSec: Int
 )
 
-
 data class AuthRequest(
     val mode: String = "auth",
     val firstName: String,
@@ -54,16 +53,34 @@ data class AuthRequest(
 )
 data class AuthResponse(val ok: Boolean, val fio: String? = null, val error: String? = null)
 
+data class ScanExistsRequest(val mode: String = "scanExists", val barcode: String)
+data class ScanExistsResponse(val ok: Boolean, val exists: Boolean? = null, val error: String? = null)
 
-data class ScanExistsRequest(
-    val mode: String = "scanExists",
-    val barcode: String
+/* ---------- Возвраты (ОБНОВЛЕНО) ---------- */
+/* По новому потоку сканируем dispatchNumber и ищем по нему barcode */
+
+data class ReturnLookupRequest(
+    val mode: String = "returnLookup",
+    val dispatchNumber: String
 )
-data class ScanExistsResponse(
+data class ReturnLookupResponse(
     val ok: Boolean,
-    val exists: Boolean? = null,
+    val found: Boolean,
+    val barcode: String? = null,     // что печатаем
     val error: String? = null
 )
+
+/* Сохраняем результат по возврату в строку с этим dispatchNumber */
+data class SaveReturnRequest(
+    val mode: String = "saveReturn",
+    val user: String,
+    val dispatchNumber: String,      // ключ поиска строки
+    val barcode: String,             // для ясности пишем оба
+    val defectDesc: String,
+    val photos: List<String>         // до 6 ссылок
+)
+
+/* ---------- API интерфейс к Apps Script ---------- */
 
 interface GoogleSheetApi {
     @GET
@@ -107,10 +124,29 @@ interface GoogleSheetApi {
     ): ScanExistsResponse
 
     @POST
-    @Headers("Content-Type: application/json", "Accept: application/json")
     suspend fun lookupTrack(
         @Url url: String,
         @Query("key") apiKey: String,
         @Body req: TrackLookupRequest
     ): TrackLookupResponse
+
+    /* ---- Возвраты (новые методы) ---- */
+    @POST
+    @Headers("Content-Type: application/json", "Accept: application/json")
+    suspend fun returnLookup(
+        @Url scriptUrl: String,
+        @Query("key") key: String,
+        @Body body: ReturnLookupRequest
+    ): ReturnLookupResponse
+
+    @POST
+    @Headers("Content-Type: application/json", "Accept: application/json")
+    suspend fun saveReturn(
+        @Url scriptUrl: String,
+        @Query("key") key: String,
+        @Body body: SaveReturnRequest
+    ): SaveResponse
 }
+
+/* ---------- Яндекс.Диск (как было) ---------- */
+

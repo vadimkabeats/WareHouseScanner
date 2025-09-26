@@ -37,20 +37,19 @@ object YandexDiskClient {
         api.uploadFile(href, body)
     }
 
-    private fun todayFolder(): String {
-        val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-        return "Warehouse/$date"
-    }
+    private fun today(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+
+    // --------- Сценарий «Добавить товар» ---------
+    private fun todayWarehouseFolder(): String = "Warehouse/${today()}"
 
     private suspend fun ensureItemFolder(barcode: String): String {
-        val dateRoot = todayFolder()
+        val dateRoot = todayWarehouseFolder()
         ensureFolder("Warehouse")
         ensureFolder(dateRoot)
         val itemFolder = "$dateRoot/${barcode}_folder"
         ensureFolder(itemFolder)
         return itemFolder
     }
-
 
     suspend fun uploadItemBundleJson(
         context: Context,
@@ -60,10 +59,8 @@ object YandexDiskClient {
     ): YDUploadResult {
         val folder = ensureItemFolder(barcode)
 
-
         val json = Gson().toJson(metadata).toByteArray(Charsets.UTF_8)
         uploadBytes("$folder/metadata.json", json)
-
 
         val publicLinks = mutableListOf<String>()
         photos.forEachIndexed { i, uri ->
@@ -72,7 +69,50 @@ object YandexDiskClient {
                 val photoName = "${barcode}_${i + 1}.jpg"
                 val path = "$folder/$photoName"
                 uploadBytes(path, bytes)
-                // опубликовать и получить public_url (не обязательно, но полезно)
+                runCatching { api.publish(authHeader, path) }
+                val meta = runCatching { api.getResource(authHeader, path) }.getOrNull()
+                meta?.publicUrl?.let { publicLinks.add(it) }
+            }
+        }
+        return YDUploadResult(folder, publicLinks)
+    }
+
+    // --------- Сценарий «Возвраты» ---------
+    private fun todayReturnsFolder(): String = "Возвраты/${today()}"
+
+    private suspend fun ensureReturnItemFolder(barcode: String): String {
+        val dateRoot = todayReturnsFolder()
+        ensureFolder("Возвраты")
+        ensureFolder(dateRoot)
+        val itemFolder = "$dateRoot/${barcode}_folder"
+        ensureFolder(itemFolder)
+        return itemFolder
+    }
+
+    /**
+     * Загрузка пакета для возврата:
+     * - metadata_return.json
+     * - фото <barcode>_1.jpg ... (_до 6)
+     * Папка: Возвраты/yyyy-MM-dd/<barcode>_folder
+     */
+    suspend fun uploadReturnBundleJson(
+        context: Context,
+        barcode: String,
+        metadata: Any,
+        photos: List<Uri>
+    ): YDUploadResult {
+        val folder = ensureReturnItemFolder(barcode)
+
+        val json = Gson().toJson(metadata).toByteArray(Charsets.UTF_8)
+        uploadBytes("$folder/metadata_return.json", json)
+
+        val publicLinks = mutableListOf<String>()
+        photos.forEachIndexed { i, uri ->
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                val bytes = stream.readBytes()
+                val photoName = "${barcode}_${i + 1}.jpg"
+                val path = "$folder/$photoName"
+                uploadBytes(path, bytes)
                 runCatching { api.publish(authHeader, path) }
                 val meta = runCatching { api.getResource(authHeader, path) }.getOrNull()
                 meta?.publicUrl?.let { publicLinks.add(it) }

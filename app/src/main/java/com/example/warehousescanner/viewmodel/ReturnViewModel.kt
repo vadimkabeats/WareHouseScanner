@@ -6,8 +6,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 class ReturnViewModel : ViewModel() {
-    private val _barcode = MutableStateFlow("")
-    val barcode: StateFlow<String> = _barcode
+    private val _dispatchNumber = MutableStateFlow("")
+    val dispatchNumber: StateFlow<String> = _dispatchNumber
+
+    private val _printBarcode = MutableStateFlow("") // barcode, который печатаем
+    val printBarcode: StateFlow<String> = _printBarcode
 
     private val _hasDefect = MutableStateFlow(false)
     val hasDefect: StateFlow<Boolean> = _hasDefect
@@ -19,13 +22,15 @@ class ReturnViewModel : ViewModel() {
     val photos: StateFlow<List<Uri>> = _photos
 
     fun reset() {
-        _barcode.value = ""
+        _dispatchNumber.value = ""
+        _printBarcode.value = ""
         _hasDefect.value = false
         _defectDesc.value = ""
         _photos.value = emptyList()
     }
 
-    fun setBarcode(value: String) { _barcode.value = value.trim() }
+    fun setDispatchNumber(value: String) { _dispatchNumber.value = value }
+    fun setPrintBarcode(value: String) { _printBarcode.value = value }
     fun setDefect(has: Boolean, desc: String) { _hasDefect.value = has; _defectDesc.value = desc }
     fun setPhotos(list: List<Uri>) { _photos.value = list }
 }

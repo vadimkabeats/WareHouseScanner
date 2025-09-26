@@ -21,7 +21,8 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun ReturnPrintScreen(
-    barcode: String,
+    dispatchNumber: String,
+    barcodeToPrint: String,
     hasDefect: Boolean,
     defectDesc: String,
     photosCount: Int,
@@ -30,7 +31,6 @@ fun ReturnPrintScreen(
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-
 
     var printer by remember { mutableStateOf(LabelPrinter.restoreLastPrinter(ctx)) }
     var showPicker by remember { mutableStateOf(printer == null) }
@@ -41,23 +41,18 @@ fun ReturnPrintScreen(
         ActivityResultContracts.RequestPermission()
     ) { /* no-op */ }
 
-    val canPrint = printer != null && !isPrinting
+    val canPrint = printer != null && !isPrinting && barcodeToPrint.isNotBlank()
 
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Принять возврат — печать этикетки", style = MaterialTheme.typography.h6)
+    Column(Modifier.fillMaxSize().padding(20.dp)) {
+        Text("Печать этикетки (Возврат)", style = MaterialTheme.typography.h6)
         Spacer(Modifier.height(8.dp))
-        Text("Исходный ШК: $barcode")
-        Spacer(Modifier.height(8.dp))
-
-        Text("Состояние: ${if (hasDefect) "Есть дефекты" else "Нет дефектов"}")
-        if (hasDefect && defectDesc.isNotBlank()) {
-            Spacer(Modifier.height(4.dp))
-            Text("Описание дефекта: $defectDesc")
-        }
-        Text("Фото: $photosCount/6")
+        Text("Dispatch №: $dispatchNumber")
+        Text("ШК (печать): $barcodeToPrint")
+        Text("Дефект: ${if (hasDefect) "Есть" else "Нет"}")
+        if (hasDefect && defectDesc.isNotBlank()) Text("Описание: $defectDesc")
+        Text("Фото: $photosCount шт.")
 
         Spacer(Modifier.height(16.dp))
-
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -94,7 +89,6 @@ fun ReturnPrintScreen(
 
         Spacer(Modifier.weight(1f))
 
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -119,8 +113,13 @@ fun ReturnPrintScreen(
                     status = null
                     scope.launch {
                         runCatching {
-
-                            LabelPrinter.printTsplFixedSmall(ctx, d, barcode, barcode)
+                            // Печатаем barcodeToPrint (и подпись тем же)
+                            LabelPrinter.printTsplFixedSmall(
+                                context = ctx,
+                                device = d,
+                                barcodeText = barcodeToPrint,
+                                captionText = barcodeToPrint
+                            )
                         }.onSuccess {
                             status = "Отправлено на печать"
                         }.onFailure { e ->
@@ -134,10 +133,17 @@ fun ReturnPrintScreen(
                 Text(if (isPrinting) "Печать…" else "Печать")
             }
         }
+
+        Spacer(Modifier.height(8.dp))
+
+        OutlinedButton(
+            onClick = onBackHome,
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("В главное меню") }
     }
 
     if (showPicker) {
-        PickPrinterDialog(
+        PickReturnPrinterDialog(
             onPick = { d: BluetoothDevice ->
                 printer = d
                 LabelPrinter.saveLastPrinter(ctx, d)
@@ -148,7 +154,53 @@ fun ReturnPrintScreen(
     }
 }
 
+@Composable
+private fun PickReturnPrinterDialog(
+    onPick: (BluetoothDevice) -> Unit,
+    onCancel: () -> Unit
+) {
+    val ctx = LocalContext.current
+    var btGranted by remember { mutableStateOf(hasBtConnectPermission(ctx)) }
+    val requestBt = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        btGranted = granted || hasBtConnectPermission(ctx)
+    }
 
+    val devices: List<BluetoothDevice> = remember(btGranted) {
+        if (btGranted) LabelPrinter.getPairedDevices(ctx) else emptyList()
+    }
+
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text("Выберите принтер") },
+        text = {
+            Column {
+                if (!btGranted && Build.VERSION.SDK_INT >= 31) {
+                    Text("Чтобы показать спаренные устройства, нужно разрешение BLUETOOTH_CONNECT.")
+                    Spacer(Modifier.height(8.dp))
+                    Button(onClick = { requestBt.launch(Manifest.permission.BLUETOOTH_CONNECT) }) {
+                        Text("Разрешить Bluetooth")
+                    }
+                } else if (devices.isEmpty()) {
+                    Text("Нет спаренных устройств.\nПодключите принтер в системных настройках Bluetooth.")
+                } else {
+                    devices.forEach { d: BluetoothDevice ->
+                        TextButton(onClick = { onPick(d) }) {
+                            Text(safeDeviceLabel(ctx, d))
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onCancel) { Text("Отмена") }
+        }
+    )
+}
+
+/* helpers */
 private fun hasBtConnectPermission(context: Context): Boolean {
     return if (Build.VERSION.SDK_INT >= 31) {
         ContextCompat.checkSelfPermission(
