@@ -394,14 +394,14 @@ fun MainNavHost(
 
         /* ------------ ПРИНЯТЬ ВОЗВРАТ (ОБНОВЛЁН) ------------ */
 
-        // 1) Сканируем dispatchNumber
         composable("return_scan") {
             val returnVm: ReturnViewModel = viewModel(activity)
             ScanScreen(
                 instanceKey = "return_scan",
                 allowManualInput = true,
                 inputHint = "Введите/отсканируйте Dispatch №",
-                torchOn = torchOn
+                torchOn = torchOn,
+                manualAllowSpaces = true          // ← ДОБАВИЛИ: разрешаем пробелы в ручном вводе
             ) { dispatch ->
                 returnVm.reset()
                 returnVm.setDispatchNumber(dispatch)
@@ -464,7 +464,7 @@ fun MainNavHost(
             }
         }
 
-        // 2) Состояние, фото
+        // 2) Состояние, фото (фото — только при дефекте)
         composable("return_condition") {
             val returnVm: ReturnViewModel = viewModel(activity)
             val dispatch by returnVm.dispatchNumber.collectAsState()
@@ -479,16 +479,38 @@ fun MainNavHost(
                 hasDefectInit = hasDefect,
                 defectDescInit = defectDesc,
                 photosCount = photos.size,
-                onChangeState = { has, desc -> returnVm.setDefect(has, desc) },
-                onOpenPhotos = { nav.navigate("return_photos") },
-                onNext = { nav.navigate("return_result") },
+                onChangeState = { has, desc ->
+                    returnVm.setDefect(has, desc)
+                    if (!has) {
+                        // Если дефекта нет — очищаем ранее выбранные фото
+                        returnVm.setPhotos(emptyList())
+                    }
+                },
+                onOpenPhotos = {
+                    // Фото доступны только при наличии дефекта
+                    if (hasDefect) {
+                        nav.navigate("return_photos")
+                    }
+                },
+                onNext = {
+                    // Без дефекта — сразу печать; с дефектом — отправка на Диск+таблицу
+                    if (hasDefect) {
+                        nav.navigate("return_result")
+                    } else {
+                        nav.navigate("return_print")
+                    }
+                },
                 onBack = { nav.popBackStack() }
             )
         }
 
-        // 2a) Фото
+        // 2a) Фото — защита от прямого попадания без дефекта
         composable("return_photos") {
             val returnVm: ReturnViewModel = viewModel(activity)
+            val hasDefect by returnVm.hasDefect.collectAsState()
+            LaunchedEffect(hasDefect) {
+                if (!hasDefect) nav.popBackStack()
+            }
             PhotoScreen { picked ->
                 returnVm.setPhotos(picked)
                 nav.popBackStack()

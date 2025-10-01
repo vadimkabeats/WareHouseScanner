@@ -34,8 +34,10 @@ data class TrackLookupResponse(
     val found: Boolean,
     val track: String? = null,
     val full: String? = null,
+    val multi: Boolean? = null,
     val error: String? = null
 )
+
 
 data class PutAwayRequest(
     val mode: String = "putAway",
@@ -148,5 +150,4 @@ interface GoogleSheetApi {
     ): SaveResponse
 }
 
-/* ---------- Яндекс.Диск (как было) ---------- */
 

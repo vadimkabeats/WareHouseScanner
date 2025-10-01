@@ -22,7 +22,9 @@ fun ReturnConditionScreen(
     var defectDesc by remember { mutableStateOf(defectDescInit) }
 
     Column(
-        Modifier.fillMaxSize().padding(16.dp),
+        Modifier
+            .fillMaxSize()
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text("Принять возврат", style = MaterialTheme.typography.h6)
@@ -34,11 +36,18 @@ fun ReturnConditionScreen(
         Text("Состояние товара", style = MaterialTheme.typography.subtitle1)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(
-                onClick = { hasDefect = false; defectDesc = ""; onChangeState(false, "") }
+                onClick = {
+                    hasDefect = false
+                    defectDesc = ""
+                    onChangeState(false, "")
+                }
             ) { Text("Нет дефектов") }
 
             OutlinedButton(
-                onClick = { hasDefect = true; onChangeState(true, defectDesc) }
+                onClick = {
+                    hasDefect = true
+                    onChangeState(true, defectDesc)
+                }
             ) { Text("Есть дефекты") }
         }
 
@@ -52,17 +61,22 @@ fun ReturnConditionScreen(
                 label = { Text("Описание дефекта") },
                 modifier = Modifier.fillMaxWidth()
             )
-        }
 
-        Spacer(Modifier.height(8.dp))
-
-        OutlinedButton(onClick = onOpenPhotos, modifier = Modifier.fillMaxWidth()) {
-            Text("Фото (${photosCount}/6)")
+            // Кнопка "Фото" доступна и видна ТОЛЬКО при наличии дефекта
+            OutlinedButton(
+                onClick = onOpenPhotos,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Фото (${photosCount}/6)")
+            }
         }
 
         Spacer(Modifier.weight(1f))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
             OutlinedButton(onClick = onBack, modifier = Modifier.weight(1f)) { Text("Назад") }
             Button(
                 onClick = onNext,

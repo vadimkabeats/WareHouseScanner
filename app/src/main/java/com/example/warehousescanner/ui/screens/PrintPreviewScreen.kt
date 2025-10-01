@@ -16,8 +16,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.activity.ComponentActivity
 import com.example.warehousescanner.data.GoogleSheetClient
 import com.example.warehousescanner.printer.LabelPrinter
+import com.example.warehousescanner.viewmodel.PrintSessionViewModel
 import kotlinx.coroutines.launch
 
 @Composable
@@ -28,10 +31,16 @@ fun PrintPreviewScreen(
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
 
+    // --- Память напечатанной коробки (full)
+    val activity = ctx as ComponentActivity
+    val printSession: PrintSessionViewModel = viewModel(activity)
+    val lastPrintedFull by printSession.lastPrintedTrackFull.collectAsState()
+
     // --- грузим трек по штрих-коду ---
     var isLoading by remember { mutableStateOf(true) }
     var trackShort by remember { mutableStateOf<String?>(null) } // "Трекномер" (короткий), для ШК
     var trackFull by remember { mutableStateOf<String?>(null) }  // "Полный трекномер", для подписи и UI
+    var isMulti by remember { mutableStateOf<Boolean?>(null) }   // НОВОЕ
     var loadError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(code) {
@@ -41,15 +50,18 @@ fun PrintPreviewScreen(
             val resp = GoogleSheetClient.lookupTrack(code)
             if (resp.found) {
                 trackShort = resp.track?.takeIf { it.isNotBlank() }
-                trackFull  = (resp.full ?: resp.track)?.takeIf { it.isNotBlank() }
+                trackFull  = (resp.full ?: resp.track)?.takeIf { !it.isNullOrBlank() }
+                isMulti    = resp.multi == true
             } else {
                 trackShort = null
                 trackFull  = null
+                isMulti    = null
             }
         } catch (e: Exception) {
             loadError = e.localizedMessage ?: "Ошибка загрузки"
             trackShort = null
             trackFull = null
+            isMulti = null
         }
         isLoading = false
     }
@@ -64,11 +76,18 @@ fun PrintPreviewScreen(
         ActivityResultContracts.RequestPermission()
     ) { /* no-op */ }
 
+    // НОВОЕ: если товар относится к много-товарной коробке и эта коробка уже печаталась — печать не нужна
+    val shouldSkipPrint: Boolean = !trackFull.isNullOrBlank() &&
+            (isMulti == true) &&
+            (lastPrintedFull != null) &&
+            (lastPrintedFull == trackFull)
+
     val canPrint = !isLoading &&
             loadError == null &&
             !trackShort.isNullOrBlank() &&
             printer != null &&
-            !isPrinting
+            !isPrinting &&
+            !shouldSkipPrint    // <— НОВОЕ: блокируем
 
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         // header
@@ -82,7 +101,28 @@ fun PrintPreviewScreen(
             isLoading -> Text("Загружаю трек-номер…")
             loadError != null -> Text("Не удалось получить трек: $loadError")
             trackFull.isNullOrBlank() -> Text("Трек-номер не найден")
-            else -> Text("Трек-номер: ${trackFull!!}")
+            else -> {
+                Text("Трек-номер: ${trackFull!!}")
+                if (isMulti == true) {
+                    Spacer(Modifier.height(4.dp))
+                    Text("Несколько товаров: Да", style = MaterialTheme.typography.caption)
+                }
+            }
+        }
+
+        // НОВОЕ: подсказка — этот товар уже относится к напечатанной коробке
+        if (shouldSkipPrint && !trackFull.isNullOrBlank()) {
+            Spacer(Modifier.height(12.dp))
+            Surface(color = MaterialTheme.colors.secondary.copy(alpha = 0.15f)) {
+                Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                    Text("Этот товар принадлежит коробке:", style = MaterialTheme.typography.subtitle2)
+                    Spacer(Modifier.height(2.dp))
+                    Text(trackFull!!, style = MaterialTheme.typography.body1)
+                    Spacer(Modifier.height(6.dp))
+                    Text("Положи его в эту коробку. Печатать этикетку не нужно.",
+                        style = MaterialTheme.typography.caption)
+                }
+            }
         }
 
         Spacer(Modifier.height(16.dp))
@@ -124,7 +164,7 @@ fun PrintPreviewScreen(
 
         Spacer(Modifier.weight(1f))
 
-        // нижняя панель: Назад + Печать
+        // нижняя панель: Назад + (возможно) Печать
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -135,35 +175,40 @@ fun PrintPreviewScreen(
                 modifier = Modifier.weight(1f)
             ) { Text("Назад") }
 
-            Button(
-                enabled = canPrint,
-                onClick = {
-                    if (Build.VERSION.SDK_INT >= 31 && !hasBtConnectPermission(ctx)) {
-                        requestBt.launch(Manifest.permission.BLUETOOTH_CONNECT)
-                        status = "Нужно разрешение на Bluetooth"
-                        return@Button
-                    }
-                    val d = printer ?: return@Button.also { status = "Принтер не выбран" }
-                    val short = trackShort ?: return@Button.also { status = "Нет короткого трека" }
-                    val full  = trackFull ?: short
-
-                    isPrinting = true
-                    status = null
-                    scope.launch {
-                        runCatching {
-                            // ШК = короткий, подпись = полный
-                            LabelPrinter.printTsplFixedSmall(ctx, d, short, full)
-                        }.onSuccess {
-                            status = "Отправлено на печать"
-                        }.onFailure { e ->
-                            status = "Ошибка печати: ${e.localizedMessage}"
+            // Показываем кнопку печати только если не нужно пропускать
+            if (!shouldSkipPrint) {
+                Button(
+                    enabled = canPrint,
+                    onClick = {
+                        if (Build.VERSION.SDK_INT >= 31 && !hasBtConnectPermission(ctx)) {
+                            requestBt.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                            status = "Нужно разрешение на Bluetooth"
+                            return@Button
                         }
-                        isPrinting = false
-                    }
-                },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(if (isPrinting) "Печать…" else "Печать")
+                        val d = printer ?: return@Button.also { status = "Принтер не выбран" }
+                        val short = trackShort ?: return@Button.also { status = "Нет короткого трека" }
+                        val full  = trackFull ?: short
+
+                        isPrinting = true
+                        status = null
+                        scope.launch {
+                            runCatching {
+                                // ШК = короткий, подпись = полный
+                                LabelPrinter.printTsplFixedSmall(ctx, d, short, full)
+                            }.onSuccess {
+                                status = "Отправлено на печать"
+                                // НОВОЕ: запоминаем последнюю напечатанную «коробку»
+                                printSession.markPrinted(full)
+                            }.onFailure { e ->
+                                status = "Ошибка печати: ${e.localizedMessage}"
+                            }
+                            isPrinting = false
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(if (isPrinting) "Печать…" else "Печать")
+                }
             }
         }
     }

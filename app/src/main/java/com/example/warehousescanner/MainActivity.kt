@@ -16,8 +16,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
 
-        val oauthToken = "y0__xDG6vflBRituTkgq5zagxS2sGCCdf2L4JbOmOIMoeBfsnOKTw"
-        val scriptUrl  = "https://script.google.com/macros/s/AKfycbyxfthOYRLv7mvzhPNTbXj1ilWrmvbqnevCiNKJG2FeZoQBt0ELvAuGkpu4zBUwCuY/exec"
+        val oauthToken = "y0__xDC-PqfqveAAhiItjgguIj3xRMa5L1mPbJOCrNGULQHPk3yPF52zA"
+        val scriptUrl  = "https://script.google.com/macros/s/AKfycbz-rcO_P-xa1jXK1CKpQVSCFliQ21dlHXE59T2k0Q0n-XwpG9HuTshcDbkfvegcDFw/exec"
         val apiKey     = "SECRET_KEY"
 
         GoogleSheetClient.init(scriptUrl, apiKey)

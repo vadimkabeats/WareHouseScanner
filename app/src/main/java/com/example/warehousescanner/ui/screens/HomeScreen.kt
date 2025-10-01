@@ -55,7 +55,7 @@ fun HomeScreen(
         Spacer(Modifier.height(16.dp))
 
         Button(onClick = onAddItem, modifier = Modifier.fillMaxWidth()) {
-            Text("Добавить товар")
+            Text("Идентифицировать товар")
         }
         Spacer(Modifier.height(12.dp))
 
