@@ -31,6 +31,10 @@ fun ReturnResultScreen(
     var message by remember { mutableStateOf("") }
     var sentOk by remember { mutableStateOf(false) }
 
+    val canSend = !sentOk &&
+            printBarcode.isNotBlank() &&
+            (!hasDefect || photos.isNotEmpty())        // ← НОВОЕ
+
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Отправка данных по возврату", style = MaterialTheme.typography.h6)
         Text("Dispatch №: $dispatchNumber")
@@ -39,6 +43,15 @@ fun ReturnResultScreen(
         if (hasDefect && defectDesc.isNotBlank()) Text("Описание: $defectDesc")
         Text("Фото: ${photos.size} шт.")
 
+        // Предупреждение, если попытались зайти сюда с дефектом, но без фото
+        if (hasDefect && photos.isEmpty()) {
+            Text(
+                "При наличии дефектов необходимо добавить хотя бы 1 фото",
+                color = MaterialTheme.colors.error,
+                style = MaterialTheme.typography.caption
+            )
+        }
+
         Spacer(Modifier.weight(1f))
 
         if (isLoading) {
@@ -46,11 +59,11 @@ fun ReturnResultScreen(
         } else {
             Button(
                 onClick = {
+                    // (логика отправки без изменений)
                     scope.launch {
                         isLoading = true
                         message = ""
                         try {
-                            // 1) Грузим в Я.Диск -> Возвраты/yyyy-MM-dd/<barcode>_folder
                             val meta = mapOf(
                                 "dispatchNumber" to dispatchNumber,
                                 "barcode" to printBarcode,
@@ -59,7 +72,7 @@ fun ReturnResultScreen(
                                 "photosCount" to photos.size,
                                 "user" to userFullName
                             )
-                            val yd = com.example.warehousescanner.data.YandexDiskClient.uploadReturnBundleJson(
+                            val yd = YandexDiskClient.uploadReturnBundleJson(
                                 context = context,
                                 barcode = printBarcode,
                                 metadata = meta,
@@ -67,7 +80,6 @@ fun ReturnResultScreen(
                             )
                             val publicUrls = yd.publicPhotoUrls.take(6)
 
-                            // 2) Пишем в лист «Возвраты»: описание дефекта + ссылки на фото (по dispatchNumber)
                             val res = GoogleSheetClient.saveReturn(
                                 user = userFullName,
                                 dispatchNumber = dispatchNumber,
@@ -90,7 +102,7 @@ fun ReturnResultScreen(
                         }
                     }
                 },
-                enabled = !sentOk && printBarcode.isNotBlank(),
+                enabled = canSend,                      // ← НОВОЕ
                 modifier = Modifier.fillMaxWidth()
             ) { Text(if (sentOk) "Уже отправлено" else "Отправить") }
 

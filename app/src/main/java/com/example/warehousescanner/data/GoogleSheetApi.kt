@@ -5,8 +5,6 @@ import okhttp3.RequestBody
 import okhttp3.ResponseBody
 import retrofit2.http.*
 
-/* ---------- Основные запросы (как были) ---------- */
-
 data class LookupResponse(val found: Boolean, val link: String?)
 data class SaveResponse(val ok: Boolean?, val updated: Boolean? = null, val error: String? = null)
 
@@ -58,8 +56,6 @@ data class AuthResponse(val ok: Boolean, val fio: String? = null, val error: Str
 data class ScanExistsRequest(val mode: String = "scanExists", val barcode: String)
 data class ScanExistsResponse(val ok: Boolean, val exists: Boolean? = null, val error: String? = null)
 
-/* ---------- Возвраты (ОБНОВЛЕНО) ---------- */
-/* По новому потоку сканируем dispatchNumber и ищем по нему barcode */
 
 data class ReturnLookupRequest(
     val mode: String = "returnLookup",
@@ -68,21 +64,20 @@ data class ReturnLookupRequest(
 data class ReturnLookupResponse(
     val ok: Boolean,
     val found: Boolean,
-    val barcode: String? = null,     // что печатаем
+    val barcode: String? = null,
+    val reason: String? = null,
+    val url: String? = null,
     val error: String? = null
 )
 
-/* Сохраняем результат по возврату в строку с этим dispatchNumber */
 data class SaveReturnRequest(
     val mode: String = "saveReturn",
     val user: String,
-    val dispatchNumber: String,      // ключ поиска строки
-    val barcode: String,             // для ясности пишем оба
+    val dispatchNumber: String,
+    val barcode: String,
     val defectDesc: String,
-    val photos: List<String>         // до 6 ссылок
+    val photos: List<String>
 )
-
-/* ---------- API интерфейс к Apps Script ---------- */
 
 interface GoogleSheetApi {
     @GET
@@ -132,7 +127,6 @@ interface GoogleSheetApi {
         @Body req: TrackLookupRequest
     ): TrackLookupResponse
 
-    /* ---- Возвраты (новые методы) ---- */
     @POST
     @Headers("Content-Type: application/json", "Accept: application/json")
     suspend fun returnLookup(
@@ -148,6 +142,23 @@ interface GoogleSheetApi {
         @Query("key") key: String,
         @Body body: SaveReturnRequest
     ): SaveResponse
+
+    @POST
+    @Headers("Content-Type: application/json", "Accept: application/json")
+    suspend fun reconcileInit(
+        @Url scriptUrl: String,
+        @Query("key") key: String,
+        @Body body: ReconcileInitRequest = ReconcileInitRequest()
+    ): ReconcileInitResponse
+
+    @POST
+    @Headers("Content-Type: application/json", "Accept: application/json")
+    suspend fun dailyStats(
+        @Url scriptUrl: String,
+        @Query("key") key: String,
+        @Body body: DailyStatsRequest
+    ): DailyStatsResponse
+
 }
 
 

@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothDevice
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -16,7 +17,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.warehousescanner.printer.LabelPrinter
+import com.example.warehousescanner.viewmodel.ReturnViewModel
 import kotlinx.coroutines.launch
 
 @Composable
@@ -37,6 +40,7 @@ fun ReturnPrintScreen(
     var isPrinting by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
 
+
     val requestBt = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { /* no-op */ }
@@ -48,6 +52,7 @@ fun ReturnPrintScreen(
         Spacer(Modifier.height(8.dp))
         Text("Dispatch №: $dispatchNumber")
         Text("ШК (печать): $barcodeToPrint")
+
         Text("Дефект: ${if (hasDefect) "Есть" else "Нет"}")
         if (hasDefect && defectDesc.isNotBlank()) Text("Описание: $defectDesc")
         Text("Фото: $photosCount шт.")
@@ -114,7 +119,7 @@ fun ReturnPrintScreen(
                     scope.launch {
                         runCatching {
                             // Печатаем barcodeToPrint (и подпись тем же)
-                            LabelPrinter.printTsplFixedSmall(
+                            LabelPrinter.printTsplFixedSmallCompact(
                                 context = ctx,
                                 device = d,
                                 barcodeText = barcodeToPrint,

@@ -250,11 +250,71 @@ object LabelPrinter {
             bcHeight = (baseBcHeight - 20).coerceAtLeast(150))
     }
 
-    /**
-     * Перенос подписи на 2–3 строки «умно».
-     * '_' → ' '; стараемся резать по пробелу, потом по границе буква→цифра, иначе — близко к лимиту.
-     * Если остаток не помещается в последнюю строку — делаем middle-ellipsis (оставляя начало и «хвост»).
-     */
+    // NEW: компактная печать для возвратов
+    suspend fun printTsplFixedSmallCompact(
+        context: Context,
+        device: BluetoothDevice,
+        barcodeText: String,
+        captionText: String?
+    ) = printMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val sock = ensureConnected(context, device)
+            if (!isPrinterReady(sock)) {
+                throw IllegalStateException("Принтер не готов (бумага/крышка/пауза)")
+            }
+
+            val len = barcodeText.length
+
+            // БЫЛО (обычное): narrow 3/2/1, wide 6/5/3, height ~190/180/165
+            // СТАЛО (компакт): чуть тоньше и ниже
+            val narrow = when { len <= 18 -> 2; len <= 24 -> 2; else -> 1 }
+            val wide   = when { len <= 18 -> 4; len <= 24 -> 4; else -> 3 }
+            val baseBcHeight = when { len <= 18 -> 170; len <= 24 -> 160; else -> 150 }
+
+            // Чуть больше тихая зона слева
+            val left = 20
+            val top  = 12
+
+            val layout = if (!captionText.isNullOrBlank())
+                pickCaptionLayout(captionText!!, baseBcHeight - 10) // подпись → ещё -10 к высоте
+            else
+                CaptionLayout(font = "3", sx = 1, sy = 1, lineStep = 22, maxPerLine = intArrayOf(), bcHeight = baseBcHeight)
+
+            val lines = if (!captionText.isNullOrBlank())
+                wrapCaptionSmart(captionText!!, layout.maxPerLine)
+            else emptyList()
+
+            val bcHeight = layout.bcHeight
+            val baseTextY = (top + bcHeight + 14).coerceAtMost(300)
+
+            val tspl = buildString {
+                append("SIZE 58 mm,40 mm\r\n")
+                append("GAP 2 mm,0\r\n")
+                append("DENSITY 8\r\n")
+                append("SPEED 4\r\n")
+                append("DIRECTION 1\r\n")
+                append("REFERENCE 0,0\r\n")
+                append("CLS\r\n")
+
+                // Code128 без подписи принтера
+                append("""BARCODE $left,$top,"128",$bcHeight,0,0,$narrow,$wide,"$barcodeText"""" + "\r\n")
+
+                if (lines.isNotEmpty()) {
+                    append("""TEXT $left,$baseTextY,"${layout.font}",0,${layout.sx},${layout.sy},"${lines[0]}"""" + "\r\n")
+                    if (lines.size >= 2)
+                        append("""TEXT $left,${baseTextY + layout.lineStep},"${layout.font}",0,${layout.sx},${layout.sy},"${lines[1]}"""" + "\r\n")
+                    if (lines.size >= 3)
+                        append("""TEXT $left,${baseTextY + layout.lineStep*2},"${layout.font}",0,${layout.sx},${layout.sy},"${lines[2]}"""" + "\r\n")
+                }
+
+                append("PRINT 1,1\r\n")
+            }.toByteArray(Charsets.US_ASCII)
+
+            try { sendRaw(sock.outputStream, tspl) }
+            catch (e: Exception) { closeSilently(); throw e }
+        }
+    }
+
     private fun wrapCaptionSmart(src: String, maxPerLine: IntArray): List<String> {
         if (maxPerLine.isEmpty()) return emptyList()
         val caption = src.replace('_', ' ').trim()
@@ -294,10 +354,6 @@ object LabelPrinter {
         return lines
     }
 
-    /**
-     * Старый перенос (оставлен для совместимости с прежним API-методом).
-     * Сейчас не используется основным путём печати.
-     */
     private fun wrapCaptionFor58mm(src: String): List<String> {
         val caption = src.replace('_', ' ')
         val max1 = 28

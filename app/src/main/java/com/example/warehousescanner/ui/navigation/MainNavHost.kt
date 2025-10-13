@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -72,16 +73,74 @@ fun MainNavHost(
         }
 
         /* ------------ ГЛАВНОЕ МЕНЮ ------------ */
+// ui/navigation/MainNavHost.kt (фрагмент "home")
         composable("home") {
+            val activity = LocalContext.current as ComponentActivity
+            val userVm: UserViewModel = viewModel(activity)
+            val settingsVm: SettingsViewModel = viewModel(activity)
+            val fullName by userVm.fullName.collectAsState()
+            val torchOn by settingsVm.torchEnabled.collectAsState()
+
+            // --- статистика
+            val statsVm: StatsViewModel = viewModel(activity)
+            val statsDate by statsVm.date.collectAsState()
+            val statsLoading by statsVm.loading.collectAsState()
+            val statsNlo by statsVm.nlo.collectAsState()
+            val statsNonNlo by statsVm.nonNlo.collectAsState()
+
+            // Изначальная загрузка (первый показ)
+            LaunchedEffect(fullName, statsDate) {
+                statsVm.loadFor(fullName)
+            }
+
+            // Перезагружать при возврате на экран (RESUME)
+            val lifecycleOwner = LocalLifecycleOwner.current
+            DisposableEffect(lifecycleOwner, fullName, statsDate) {
+                val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+                    if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                        statsVm.loadFor(fullName)
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(obs)
+                onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
+            }
+
+            // DatePickerDialog (Android)
+            val ctx = LocalContext.current
+            val dp = remember(statsDate) {
+                android.app.DatePickerDialog(
+                    ctx,
+                    { _, y, m, d ->
+                        // m: 0..11
+                        val picked = java.time.LocalDate.of(y, m + 1, d)
+                        statsVm.setDate(picked)
+                    },
+                    statsDate.year, statsDate.monthValue - 1, statsDate.dayOfMonth
+                )
+            }
+
+            // Подпись «за сегодня» / «за дату»
+            val msk = java.time.ZoneId.of("Europe/Moscow")
+            val todayMsk = remember { java.time.LocalDate.now(msk) }
+            val statsDateLabel = if (statsDate == todayMsk) "за сегодня"
+            else "за ${statsDate.format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"))}"
+
             HomeScreen(
                 onAddItem = { nav.navigate("scan") },
                 onPutAway = { nav.navigate("put_scan_item") },
                 onPrintLabel = { nav.navigate("print_scan") },
                 onReceiveReturn = { nav.navigate("return_scan") },
+                onReconcile = { nav.navigate("reconcile_home") },
+                statsDateLabel = statsDateLabel,
+                statsNonNlo = statsNonNlo,
+                statsNlo = statsNlo,
+                statsLoading = statsLoading,
+                onPickDate = { dp.show() },
                 torchOn = torchOn,
                 onToggleTorch = { settingsVm.setTorchEnabled(it) }
             )
         }
+
 
         /* ------------ ДОБАВИТЬ ТОВАР ------------ */
         composable("scan") {
@@ -428,7 +487,9 @@ fun MainNavHost(
                     .onSuccess { resp ->
                         if (resp.ok && resp.found && !resp.barcode.isNullOrBlank()) {
                             returnVm.setDispatchNumber(dispatch)
-                            returnVm.setPrintBarcode(resp.barcode)
+                            returnVm.setPrintBarcode(resp.barcode!!)
+                            returnVm.setReturnReason(resp.reason.orEmpty())
+                            returnVm.setReturnUrl(resp.url.orEmpty())
                             state = "ok"
                         } else {
                             err = "Не найдено в листе «Возвраты»"
@@ -469,31 +530,30 @@ fun MainNavHost(
             val returnVm: ReturnViewModel = viewModel(activity)
             val dispatch by returnVm.dispatchNumber.collectAsState()
             val barcodeToPrint by returnVm.printBarcode.collectAsState()
+            val reason by returnVm.returnReason.collectAsState()
+            val productUrl by returnVm.productUrl.collectAsState()
             val hasDefect by returnVm.hasDefect.collectAsState()
             val defectDesc by returnVm.defectDesc.collectAsState()
             val photos by returnVm.photos.collectAsState()
 
+
+
             ReturnConditionScreen(
                 dispatchNumber = dispatch,
                 printBarcode = barcodeToPrint,
+                reason = reason,
+                productUrl = productUrl,
                 hasDefectInit = hasDefect,
                 defectDescInit = defectDesc,
                 photosCount = photos.size,
                 onChangeState = { has, desc ->
                     returnVm.setDefect(has, desc)
-                    if (!has) {
-                        // Если дефекта нет — очищаем ранее выбранные фото
-                        returnVm.setPhotos(emptyList())
-                    }
+                    if (!has) returnVm.setPhotos(emptyList())
                 },
-                onOpenPhotos = {
-                    // Фото доступны только при наличии дефекта
-                    if (hasDefect) {
-                        nav.navigate("return_photos")
-                    }
-                },
+                onOpenPhotos = { if (hasDefect) nav.navigate("return_photos") },
                 onNext = {
-                    // Без дефекта — сразу печать; с дефектом — отправка на Диск+таблицу
+                    // ← НОВОЕ: не позволяем идти дальше, если есть дефект и нет фото
+                    if (hasDefect && photos.isEmpty()) return@ReturnConditionScreen
                     if (hasDefect) {
                         nav.navigate("return_result")
                     } else {
@@ -504,7 +564,7 @@ fun MainNavHost(
             )
         }
 
-        // 2a) Фото — защита от прямого попадания без дефекта
+            // 2a) Фото — защита от прямого попадания без дефекта
         composable("return_photos") {
             val returnVm: ReturnViewModel = viewModel(activity)
             val hasDefect by returnVm.hasDefect.collectAsState()
@@ -565,6 +625,76 @@ fun MainNavHost(
                 defectDesc = defectDesc,
                 photosCount = photos.size,
                 onBack = { nav.popBackStack() },
+                onBackHome = {
+                    val popped = nav.popBackStack("home", false)
+                    if (!popped) {
+                        nav.navigate("home") {
+                            popUpTo(nav.graph.startDestinationId) { inclusive = false }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                }
+            )
+        }
+
+        /* ------------ СВЕРКА С КУРЬЕРОМ (НОВОЕ) ------------ */
+        composable("reconcile_home") {
+            val rvm: ReconcileViewModel = viewModel(activity)
+            val loading by rvm.loading.collectAsState()
+            val error by rvm.error.collectAsState()
+            val expected by rvm.expected.collectAsState()
+            val scanned by rvm.scanned.collectAsState()
+
+            LaunchedEffect(Unit) { rvm.load() }
+
+            ReconcileHomeScreen(
+                isLoading = loading,
+                error = error,
+                expected = expected,
+                scannedCount = scanned.size,
+                onScan = { nav.navigate("reconcile_scan") },
+                onBrowse = { nav.navigate("reconcile_browse") },   // ← НОВОЕ
+                onViewPassed = { nav.navigate("reconcile_done?tab=passed") },
+                onReload = { rvm.load() }
+            )
+        }
+
+        composable("reconcile_browse") {
+            val rvm: ReconcileViewModel = viewModel(activity)
+            val items by rvm.expected.collectAsState()
+            ReconcileBrowseScreen(
+                items = items,
+                onBack = { nav.popBackStack() }
+            )
+        }
+
+        composable("reconcile_scan") {
+            val rvm: ReconcileViewModel = viewModel(activity)
+            ReconcileScanScreen(
+                vm = rvm,
+                torchOn = torchOn,
+                onNextItem = { /* остаться тут */ },
+                onFinish = { nav.navigate("reconcile_done") }
+            )
+        }
+
+        composable(
+            route = "reconcile_done?tab={tab}",
+            arguments = listOf(navArgument("tab"){ defaultValue = "" })
+        ) { backStackEntry ->
+            val rvm: ReconcileViewModel = viewModel(activity)
+
+            val passed = remember(rvm.scanned.collectAsState().value, rvm.expected.collectAsState().value) {
+                rvm.passedScanned()
+            }
+            val notPassed = remember(rvm.scanned.collectAsState().value, rvm.expected.collectAsState().value) {
+                rvm.notPassedScanned()
+            }
+
+            ReconcileDoneScreen(
+                passed = passed,
+                notPassed = notPassed,
                 onBackHome = {
                     val popped = nav.popBackStack("home", false)
                     if (!popped) {

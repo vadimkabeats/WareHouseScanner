@@ -78,13 +78,9 @@ object GoogleSheetClient {
         return resp.ok && (resp.exists == true)
     }
 
-    /* ---- Возвраты (ОБНОВЛЕНО) ---- */
-
-    /** По dispatchNumber находим barcode (для печати). */
     suspend fun returnLookup(dispatchNumber: String): ReturnLookupResponse =
         api.returnLookup(scriptUrl, apiKey, ReturnLookupRequest(dispatchNumber = dispatchNumber))
 
-    /** Записать описание дефекта и ссылки на фото в строку с данным dispatchNumber. */
     suspend fun saveReturn(
         user: String,
         dispatchNumber: String,
@@ -101,4 +97,15 @@ object GoogleSheetClient {
         )
         return api.saveReturn(scriptUrl, apiKey, body)
     }
+
+    suspend fun reconcileInit(): List<ReconcileItem> {
+        val resp = api.reconcileInit(scriptUrl, apiKey, ReconcileInitRequest())
+        if (!resp.ok) error(resp.error ?: "reconcileInit failed")
+        return resp.items
+    }
+
+    suspend fun dailyStats(dateIso: String?, user: String?): DailyStatsResponse =
+        api.dailyStats(scriptUrl, apiKey, DailyStatsRequest(date = dateIso, user = user))
+
+
 }

@@ -1,15 +1,20 @@
 package com.example.warehousescanner.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 
 @Composable
 fun ReturnConditionScreen(
     dispatchNumber: String,
     printBarcode: String,
+    reason: String,
+    productUrl: String,                      // ← НОВОЕ
     hasDefectInit: Boolean,
     defectDescInit: String,
     photosCount: Int,
@@ -18,37 +23,55 @@ fun ReturnConditionScreen(
     onNext: () -> Unit,
     onBack: () -> Unit
 ) {
+    val uriHandler = LocalUriHandler.current
     var hasDefect by remember { mutableStateOf(hasDefectInit) }
     var defectDesc by remember { mutableStateOf(defectDescInit) }
 
+    val canProceed = printBarcode.isNotBlank() && (!hasDefect || photosCount > 0)
+
+    fun normalizeUrl(u: String): String =
+        if (u.startsWith("http://", true) || u.startsWith("https://", true)) u else "https://$u"
+
     Column(
-        Modifier
-            .fillMaxSize()
-            .padding(16.dp),
+        Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text("Принять возврат", style = MaterialTheme.typography.h6)
         Text("Dispatch №: ${dispatchNumber.ifBlank { "—" }}")
         Text("ШК для печати: ${printBarcode.ifBlank { "—" }}")
 
-        Divider()
+        if (productUrl.isNotBlank()) {
+            Divider()
+            Text("Ссылка на товар", style = MaterialTheme.typography.subtitle2)
+            Text(
+                text = productUrl,
+                color = MaterialTheme.colors.primary,
+                textDecoration = TextDecoration.Underline,
+                modifier = Modifier.clickable {
+                    runCatching { uriHandler.openUri(normalizeUrl(productUrl.trim())) }
+                }
+            )
+        }
 
+        if (reason.isNotBlank()) {
+            Divider()
+            Text("Причина возврата", style = MaterialTheme.typography.subtitle2)
+            Text(reason)
+        }
+
+        Divider()
         Text("Состояние товара", style = MaterialTheme.typography.subtitle1)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(
-                onClick = {
-                    hasDefect = false
-                    defectDesc = ""
-                    onChangeState(false, "")
-                }
-            ) { Text("Нет дефектов") }
+            Button(onClick = {
+                hasDefect = false
+                defectDesc = ""
+                onChangeState(false, "")
+            }) { Text("Нет дефектов") }
 
-            OutlinedButton(
-                onClick = {
-                    hasDefect = true
-                    onChangeState(true, defectDesc)
-                }
-            ) { Text("Есть дефекты") }
+            OutlinedButton(onClick = {
+                hasDefect = true
+                onChangeState(true, defectDesc)
+            }) { Text("Есть дефекты") }
         }
 
         if (hasDefect) {
@@ -62,12 +85,18 @@ fun ReturnConditionScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // Кнопка "Фото" доступна и видна ТОЛЬКО при наличии дефекта
             OutlinedButton(
                 onClick = onOpenPhotos,
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Фото (${photosCount}/6)")
+            ) { Text("Фото (${photosCount}/6)") }
+
+
+            if (photosCount == 0) {
+                Text(
+                    "Добавьте минимум 1 фото при наличии дефектов",
+                    color = MaterialTheme.colors.error,
+                    style = MaterialTheme.typography.caption
+                )
             }
         }
 
@@ -81,7 +110,7 @@ fun ReturnConditionScreen(
             Button(
                 onClick = onNext,
                 modifier = Modifier.weight(1f),
-                enabled = printBarcode.isNotBlank() // не даём идти дальше, если не нашли barcode
+                enabled = canProceed
             ) { Text("Далее") }
         }
     }
