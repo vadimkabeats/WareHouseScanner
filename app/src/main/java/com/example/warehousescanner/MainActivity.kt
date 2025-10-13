@@ -15,8 +15,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val oauthToken = "y0__xDC-PqfqveAAhiItjgguIj3xRMa5L1mPbJOCrNGULQHPk3yPF52zA"
-        val scriptUrl  = "https://script.google.com/macros/s/AKfycby6bPg0Pgcphm-8qO4D1_UiikWz0oaq4CbxxrTMyntJTGtqVbQVjo6Zg_KN6bLfank/exec"
+        val oauthToken = "y0__xDG6vflBRituTkgq5zagxS2sGCCdf2L4JbOmOIMoeBfsnOKTw"
+        val scriptUrl  = "https://script.google.com/macros/s/AKfycbxPAmspfzK46MZw9n99t2eW1NNo9Apx_jdssoVr7qCosidivP-FJ0IglNIYdQgMKCw/exec"
         val apiKey     = "SECRET_KEY"
 
         GoogleSheetClient.init(scriptUrl, apiKey)
