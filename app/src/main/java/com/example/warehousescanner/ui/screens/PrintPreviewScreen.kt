@@ -31,16 +31,14 @@ fun PrintPreviewScreen(
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // --- Память напечатанной коробки (full)
     val activity = ctx as ComponentActivity
     val printSession: PrintSessionViewModel = viewModel(activity)
     val lastPrintedFull by printSession.lastPrintedTrackFull.collectAsState()
 
-    // --- грузим трек по штрих-коду ---
     var isLoading by remember { mutableStateOf(true) }
-    var trackShort by remember { mutableStateOf<String?>(null) } // "Трекномер" (короткий), для ШК
-    var trackFull by remember { mutableStateOf<String?>(null) }  // "Полный трекномер", для подписи и UI
-    var isMulti by remember { mutableStateOf<Boolean?>(null) }   // НОВОЕ
+    var trackShort by remember { mutableStateOf<String?>(null) }
+    var trackFull by remember { mutableStateOf<String?>(null) }
+    var isMulti by remember { mutableStateOf<Boolean?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(code) {
@@ -66,7 +64,6 @@ fun PrintPreviewScreen(
         isLoading = false
     }
 
-    // --- принтер: запоминаем последний выбранный ---
     var printer by remember { mutableStateOf(LabelPrinter.restoreLastPrinter(ctx)) }
     var showPicker by remember { mutableStateOf(printer == null) }
     var isPrinting by remember { mutableStateOf(false) }
@@ -76,7 +73,6 @@ fun PrintPreviewScreen(
         ActivityResultContracts.RequestPermission()
     ) { /* no-op */ }
 
-    // НОВОЕ: если товар относится к много-товарной коробке и эта коробка уже печаталась — печать не нужна
     val shouldSkipPrint: Boolean = !trackFull.isNullOrBlank() &&
             (isMulti == true) &&
             (lastPrintedFull != null) &&
@@ -87,16 +83,14 @@ fun PrintPreviewScreen(
             !trackShort.isNullOrBlank() &&
             printer != null &&
             !isPrinting &&
-            !shouldSkipPrint    // <— НОВОЕ: блокируем
+            !shouldSkipPrint
 
     Column(Modifier.fillMaxSize().padding(20.dp)) {
-        // header
         Text("Печать этикетки", style = MaterialTheme.typography.h6)
         Spacer(Modifier.height(8.dp))
         Text("Штрих-код: $code")
         Spacer(Modifier.height(8.dp))
 
-        // трек — показываем ТОЛЬКО полный
         when {
             isLoading -> Text("Загружаю трек-номер…")
             loadError != null -> Text("Не удалось получить трек: $loadError")
@@ -110,7 +104,6 @@ fun PrintPreviewScreen(
             }
         }
 
-        // НОВОЕ: подсказка — этот товар уже относится к напечатанной коробке
         if (shouldSkipPrint && !trackFull.isNullOrBlank()) {
             Spacer(Modifier.height(12.dp))
             Surface(color = MaterialTheme.colors.secondary.copy(alpha = 0.15f)) {
@@ -127,7 +120,6 @@ fun PrintPreviewScreen(
 
         Spacer(Modifier.height(16.dp))
 
-        // выбор/отображение принтера
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -156,7 +148,6 @@ fun PrintPreviewScreen(
             }
         }
 
-        // сообщение статуса
         status?.let {
             Spacer(Modifier.height(12.dp))
             Text(it)
@@ -164,7 +155,6 @@ fun PrintPreviewScreen(
 
         Spacer(Modifier.weight(1f))
 
-        // нижняя панель: Назад + (возможно) Печать
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -175,7 +165,6 @@ fun PrintPreviewScreen(
                 modifier = Modifier.weight(1f)
             ) { Text("Назад") }
 
-            // Показываем кнопку печати только если не нужно пропускать
             if (!shouldSkipPrint) {
                 Button(
                     enabled = canPrint,
@@ -193,12 +182,23 @@ fun PrintPreviewScreen(
                         status = null
                         scope.launch {
                             runCatching {
-                                // ШК = короткий, подпись = полный
+                                // Печать
                                 LabelPrinter.printTsplFixedSmall(ctx, d, short, full)
                             }.onSuccess {
                                 status = "Отправлено на печать"
-                                // НОВОЕ: запоминаем последнюю напечатанную «коробку»
+                                // 1) помечаем локально
                                 printSession.markPrinted(full)
+                                // 2) НОВОЕ: фиксируем в таблице «Доставка»
+                                runCatching {
+                                    GoogleSheetClient.labelPrinted(
+                                        trackFull = full,
+                                        trackShort = short,
+                                        printedAtMs = System.currentTimeMillis()
+                                    )
+                                }.onFailure { e ->
+                                    // не блокируем пользовательский поток — просто покажем статус
+                                    status = "Печать ок, но запись статуса не удалась: ${e.localizedMessage}"
+                                }
                             }.onFailure { e ->
                                 status = "Ошибка печати: ${e.localizedMessage}"
                             }
@@ -224,9 +224,6 @@ fun PrintPreviewScreen(
         )
     }
 }
-
-/* ---------- Диалог выбора принтера ---------- */
-
 @Composable
 fun PickPrinterDialog(
     onPick: (BluetoothDevice) -> Unit,

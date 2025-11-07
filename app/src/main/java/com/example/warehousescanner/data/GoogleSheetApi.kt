@@ -1,8 +1,5 @@
 package com.example.warehousescanner.data
 
-import com.google.gson.annotations.SerializedName
-import okhttp3.RequestBody
-import okhttp3.ResponseBody
 import retrofit2.http.*
 
 data class LookupResponse(val found: Boolean, val link: String?)
@@ -36,7 +33,6 @@ data class TrackLookupResponse(
     val error: String? = null
 )
 
-
 data class PutAwayRequest(
     val mode: String = "putAway",
     val user: String,
@@ -56,7 +52,6 @@ data class AuthResponse(val ok: Boolean, val fio: String? = null, val error: Str
 data class ScanExistsRequest(val mode: String = "scanExists", val barcode: String)
 data class ScanExistsResponse(val ok: Boolean, val exists: Boolean? = null, val error: String? = null)
 
-
 data class ReturnLookupRequest(
     val mode: String = "returnLookup",
     val dispatchNumber: String
@@ -70,13 +65,15 @@ data class ReturnLookupResponse(
     val error: String? = null
 )
 
+/** НОВОЕ: добавили decision */
 data class SaveReturnRequest(
     val mode: String = "saveReturn",
     val user: String,
     val dispatchNumber: String,
     val barcode: String,
     val defectDesc: String,
-    val photos: List<String>
+    val photos: List<String>,
+    val decision: String
 )
 
 interface GoogleSheetApi {
@@ -159,6 +156,10 @@ interface GoogleSheetApi {
         @Body body: DailyStatsRequest
     ): DailyStatsResponse
 
+    @POST
+    suspend fun labelPrinted(
+        @Url url: String,
+        @Query("key") key: String,
+        @Body body: LabelPrintedRequest
+    ): LabelPrintedResponse
 }
-
-

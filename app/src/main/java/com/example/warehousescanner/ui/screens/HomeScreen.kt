@@ -1,13 +1,7 @@
 package com.example.warehousescanner.ui.screens
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.Button
-import androidx.compose.material.Card
-import androidx.compose.material.LinearProgressIndicator
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Switch
-import androidx.compose.material.Text
-import androidx.compose.material.TextButton
+import androidx.compose.material.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -20,12 +14,10 @@ fun HomeScreen(
     onPrintLabel: () -> Unit,
     onReceiveReturn: () -> Unit,
     onReconcile: () -> Unit,
-    // Статистика (НОВОЕ):
-    statsDateLabel: String,
+    // Статистика — только за сегодня
     statsNonNlo: Int?,
     statsNlo: Int?,
     statsLoading: Boolean,
-    onPickDate: () -> Unit,
     // Фонарик
     torchOn: Boolean,
     onToggleTorch: (Boolean) -> Unit
@@ -39,11 +31,10 @@ fun HomeScreen(
         // Верхний левый угол — карточка статистики
         Row(Modifier.fillMaxWidth()) {
             DailyStatsCard(
-                title = "Проверено $statsDateLabel",
+                title = "Проверено за сегодня",
                 nonNlo = statsNonNlo,
                 nlo = statsNlo,
-                loading = statsLoading,
-                onPickDate = onPickDate
+                loading = statsLoading
             )
             Spacer(Modifier.weight(1f))
         }
@@ -91,16 +82,13 @@ private fun DailyStatsCard(
     title: String,
     nonNlo: Int?,
     nlo: Int?,
-    loading: Boolean,
-    onPickDate: () -> Unit
+    loading: Boolean
 ) {
     Card {
         Column(Modifier.padding(12.dp)) {
-            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                Text(title, style = MaterialTheme.typography.subtitle1)
-                TextButton(onClick = onPickDate) { Text("Сменить дату") }
-            }
+            Text(title, style = MaterialTheme.typography.subtitle1)
             if (loading) {
+                Spacer(Modifier.height(8.dp))
                 LinearProgressIndicator(Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
             }

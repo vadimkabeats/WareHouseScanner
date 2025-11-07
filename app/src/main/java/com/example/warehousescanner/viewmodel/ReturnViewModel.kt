@@ -27,6 +27,10 @@ class ReturnViewModel : ViewModel() {
     private val _productUrl = MutableStateFlow("")
     val productUrl: StateFlow<String> = _productUrl
 
+    /** НОВОЕ: выбранное действие с возвратом */
+    private val _decision = MutableStateFlow("")
+    val decision: StateFlow<String> = _decision
+
     fun reset() {
         _dispatchNumber.value = ""
         _printBarcode.value = ""
@@ -35,14 +39,14 @@ class ReturnViewModel : ViewModel() {
         _hasDefect.value = false
         _defectDesc.value = ""
         _photos.value = emptyList()
+        _decision.value = ""
     }
 
     fun setDispatchNumber(value: String) { _dispatchNumber.value = value }
     fun setPrintBarcode(value: String) { _printBarcode.value = value }
-
     fun setReturnReason(value: String) { _returnReason.value = value }
-
     fun setReturnUrl(value: String)    { _productUrl.value = value }
     fun setDefect(has: Boolean, desc: String) { _hasDefect.value = has; _defectDesc.value = desc }
     fun setPhotos(list: List<Uri>) { _photos.value = list }
+    fun setDecision(value: String) { _decision.value = value }
 }

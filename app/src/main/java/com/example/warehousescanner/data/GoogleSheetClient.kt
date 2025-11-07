@@ -43,9 +43,9 @@ object GoogleSheetClient {
             .addInterceptor(RetryOnTimeoutInterceptor(retries = 1))
             .retryOnConnectionFailure(true)
             .connectTimeout(20, TimeUnit.SECONDS)
-            .writeTimeout(60, TimeUnit.SECONDS)
-            .readTimeout(90, TimeUnit.SECONDS)
-            .callTimeout(120, TimeUnit.SECONDS)
+            .writeTimeout(120, TimeUnit.SECONDS)
+            .readTimeout(120, TimeUnit.SECONDS)
+            .callTimeout(0, TimeUnit.SECONDS)
             .build()
 
         val gson = GsonBuilder().setLenient().create()
@@ -78,6 +78,8 @@ object GoogleSheetClient {
         return resp.ok && (resp.exists == true)
     }
 
+    /* ---- Возвраты ---- */
+
     suspend fun returnLookup(dispatchNumber: String): ReturnLookupResponse =
         api.returnLookup(scriptUrl, apiKey, ReturnLookupRequest(dispatchNumber = dispatchNumber))
 
@@ -86,14 +88,16 @@ object GoogleSheetClient {
         dispatchNumber: String,
         barcode: String,
         defectDesc: String,
-        photoLinks: List<String>
+        photoLinks: List<String>,
+        decision: String
     ): SaveResponse {
         val body = SaveReturnRequest(
             user = user,
             dispatchNumber = dispatchNumber,
             barcode = barcode,
             defectDesc = defectDesc,
-            photos = photoLinks
+            photos = photoLinks,
+            decision = decision
         )
         return api.saveReturn(scriptUrl, apiKey, body)
     }
@@ -107,5 +111,19 @@ object GoogleSheetClient {
     suspend fun dailyStats(dateIso: String?, user: String?): DailyStatsResponse =
         api.dailyStats(scriptUrl, apiKey, DailyStatsRequest(date = dateIso, user = user))
 
-
+    /* ---- НОВОЕ: отметка об успешной печати ---- */
+    suspend fun labelPrinted(
+        trackFull: String?,
+        trackShort: String?,
+        printedAtMs: Long? = null
+    ): LabelPrintedResponse =
+        api.labelPrinted(
+            scriptUrl,
+            apiKey,
+            LabelPrintedRequest(
+                track_full = trackFull,
+                track_short = trackShort,
+                printed_at_ms = printedAtMs ?: System.currentTimeMillis()
+            )
+        )
 }

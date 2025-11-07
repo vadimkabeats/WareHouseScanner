@@ -3,16 +3,41 @@ package com.example.warehousescanner.data
 import android.content.Context
 import android.net.Uri
 import com.google.gson.Gson
-import okhttp3.MediaType.Companion.toMediaType
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.Interceptor
+import okhttp3.OkHttpClient
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.io.IOException
+import java.net.SocketTimeoutException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
+import okhttp3.MediaType.Companion.toMediaType
 
 data class YDUploadResult(val folder: String, val publicPhotoUrls: List<String>)
+
+/** Локальный ретрай только для YandexDisk — чтобы не конфликтовать с GoogleSheetClient */
+private class YdRetryOnTimeoutInterceptor(private val retries: Int = 2) : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): okhttp3.Response {
+        var tries = 0
+        var last: IOException? = null
+        while (tries <= retries) {
+            try { return chain.proceed(chain.request()) }
+            catch (e: IOException) {
+                last = e
+                if (e is SocketTimeoutException && tries < retries) { tries++; continue }
+                throw e
+            }
+        }
+        throw last ?: IOException("Unknown network error")
+    }
+}
 
 object YandexDiskClient {
     private lateinit var api: YandexDiskApi
@@ -20,8 +45,24 @@ object YandexDiskClient {
 
     fun init(oauthToken: String) {
         authHeader = "OAuth $oauthToken"
+
+        val logging = HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BASIC
+        }
+
+        val ok = OkHttpClient.Builder()
+            .addInterceptor(logging)
+            .addInterceptor(YdRetryOnTimeoutInterceptor(retries = 2))
+            .retryOnConnectionFailure(true)
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(120, TimeUnit.SECONDS)  // больше времени на отправку
+            .readTimeout(120, TimeUnit.SECONDS)   // больше времени на ответ
+            .callTimeout(0, TimeUnit.SECONDS)     // без общего дедлайна
+            .build()
+
         api = Retrofit.Builder()
             .baseUrl("https://cloud-api.yandex.net/")
+            .client(ok)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(YandexDiskApi::class.java)
@@ -39,7 +80,7 @@ object YandexDiskClient {
 
     private fun today(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
 
-    // --------- Сценарий «Добавить товар» ---------
+    // --------- «Добавить товар» ---------
     private fun todayWarehouseFolder(): String = "Warehouse/${today()}"
 
     private suspend fun ensureItemFolder(barcode: String): String {
@@ -64,20 +105,22 @@ object YandexDiskClient {
 
         val publicLinks = mutableListOf<String>()
         photos.forEachIndexed { i, uri ->
-            context.contentResolver.openInputStream(uri)?.use { stream ->
-                val bytes = stream.readBytes()
-                val photoName = "${barcode}_${i + 1}.jpg"
-                val path = "$folder/$photoName"
-                uploadBytes(path, bytes)
-                runCatching { api.publish(authHeader, path) }
-                val meta = runCatching { api.getResource(authHeader, path) }.getOrNull()
-                meta?.publicUrl?.let { publicLinks.add(it) }
+            val bytes = withContext(Dispatchers.IO) {
+                context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: ByteArray(0)
             }
+            if (bytes.isEmpty()) return@forEachIndexed
+
+            val photoName = "${barcode}_${i + 1}.jpg"
+            val path = "$folder/$photoName"
+            uploadBytes(path, bytes)
+            runCatching { api.publish(authHeader, path) }
+            val meta = runCatching { api.getResource(authHeader, path) }.getOrNull()
+            meta?.publicUrl?.let { publicLinks.add(it) }
         }
         return YDUploadResult(folder, publicLinks)
     }
 
-    // --------- Сценарий «Возвраты» ---------
+    // --------- «Возвраты» ---------
     private fun todayReturnsFolder(): String = "Возвраты/${today()}"
 
     private suspend fun ensureReturnItemFolder(barcode: String): String {
@@ -89,12 +132,6 @@ object YandexDiskClient {
         return itemFolder
     }
 
-    /**
-     * Загрузка пакета для возврата:
-     * - metadata_return.json
-     * - фото <barcode>_1.jpg ... (_до 6)
-     * Папка: Возвраты/yyyy-MM-dd/<barcode>_folder
-     */
     suspend fun uploadReturnBundleJson(
         context: Context,
         barcode: String,
@@ -108,15 +145,17 @@ object YandexDiskClient {
 
         val publicLinks = mutableListOf<String>()
         photos.forEachIndexed { i, uri ->
-            context.contentResolver.openInputStream(uri)?.use { stream ->
-                val bytes = stream.readBytes()
-                val photoName = "${barcode}_${i + 1}.jpg"
-                val path = "$folder/$photoName"
-                uploadBytes(path, bytes)
-                runCatching { api.publish(authHeader, path) }
-                val meta = runCatching { api.getResource(authHeader, path) }.getOrNull()
-                meta?.publicUrl?.let { publicLinks.add(it) }
+            val bytes = withContext(Dispatchers.IO) {
+                context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: ByteArray(0)
             }
+            if (bytes.isEmpty()) return@forEachIndexed
+
+            val photoName = "${barcode}_${i + 1}.jpg"
+            val path = "$folder/$photoName"
+            uploadBytes(path, bytes)
+            runCatching { api.publish(authHeader, path) }
+            val meta = runCatching { api.getResource(authHeader, path) }.getOrNull()
+            meta?.publicUrl?.let { publicLinks.add(it) }
         }
         return YDUploadResult(folder, publicLinks)
     }

@@ -14,11 +14,13 @@ fun ReturnConditionScreen(
     dispatchNumber: String,
     printBarcode: String,
     reason: String,
-    productUrl: String,                      // ← НОВОЕ
+    productUrl: String,
     hasDefectInit: Boolean,
     defectDescInit: String,
     photosCount: Int,
+    decisionInit: String,                           // НОВОЕ
     onChangeState: (Boolean, String) -> Unit,
+    onSelectDecision: (String) -> Unit,             // НОВОЕ
     onOpenPhotos: () -> Unit,
     onNext: () -> Unit,
     onBack: () -> Unit
@@ -27,10 +29,15 @@ fun ReturnConditionScreen(
     var hasDefect by remember { mutableStateOf(hasDefectInit) }
     var defectDesc by remember { mutableStateOf(defectDescInit) }
 
-    val canProceed = printBarcode.isNotBlank() && (!hasDefect || photosCount > 0)
+    val options = listOf("перевыложить без изменений", "изменить и перевыложить", "списать")
+    var decision by remember { mutableStateOf(decisionInit) }
 
     fun normalizeUrl(u: String): String =
         if (u.startsWith("http://", true) || u.startsWith("https://", true)) u else "https://$u"
+
+    val canProceed = printBarcode.isNotBlank() &&
+            decision.isNotBlank() &&
+            (!hasDefect || photosCount > 0)
 
     Column(
         Modifier.fillMaxSize().padding(16.dp),
@@ -90,13 +97,27 @@ fun ReturnConditionScreen(
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Фото (${photosCount}/6)") }
 
-
             if (photosCount == 0) {
                 Text(
                     "Добавьте минимум 1 фото при наличии дефектов",
                     color = MaterialTheme.colors.error,
                     style = MaterialTheme.typography.caption
                 )
+            }
+        }
+
+        Divider()
+        Text("Что делаем с возвратом", style = MaterialTheme.typography.subtitle1)
+        options.forEach { opt ->
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                RadioButton(
+                    selected = decision == opt,
+                    onClick = {
+                        decision = opt
+                        onSelectDecision(opt)
+                    }
+                )
+                Text(opt)
             }
         }
 

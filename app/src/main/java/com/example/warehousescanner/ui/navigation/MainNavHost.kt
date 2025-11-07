@@ -72,58 +72,37 @@ fun MainNavHost(
             )
         }
 
-        /* ------------ ГЛАВНОЕ МЕНЮ ------------ */
-// ui/navigation/MainNavHost.kt (фрагмент "home")
+        /* ------------ ГЛАВНОЕ МЕНЮ (только «сегодня») ------------ */
         composable("home") {
             val activity = LocalContext.current as ComponentActivity
             val userVm: UserViewModel = viewModel(activity)
             val settingsVm: SettingsViewModel = viewModel(activity)
+
             val fullName by userVm.fullName.collectAsState()
             val torchOn by settingsVm.torchEnabled.collectAsState()
 
-            // --- статистика
+            // --- статистика за сегодня
             val statsVm: StatsViewModel = viewModel(activity)
-            val statsDate by statsVm.date.collectAsState()
             val statsLoading by statsVm.loading.collectAsState()
             val statsNlo by statsVm.nlo.collectAsState()
             val statsNonNlo by statsVm.nonNlo.collectAsState()
 
-            // Изначальная загрузка (первый показ)
-            LaunchedEffect(fullName, statsDate) {
+            // Изначальная загрузка
+            LaunchedEffect(fullName) {
                 statsVm.loadFor(fullName)
             }
 
             // Перезагружать при возврате на экран (RESUME)
             val lifecycleOwner = LocalLifecycleOwner.current
-            DisposableEffect(lifecycleOwner, fullName, statsDate) {
+            DisposableEffect(lifecycleOwner, fullName) {
                 val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
                     if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                        statsVm.loadFor(fullName)
+                        statsVm.loadFor(fullName) // всегда «сегодня»
                     }
                 }
                 lifecycleOwner.lifecycle.addObserver(obs)
                 onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
             }
-
-            // DatePickerDialog (Android)
-            val ctx = LocalContext.current
-            val dp = remember(statsDate) {
-                android.app.DatePickerDialog(
-                    ctx,
-                    { _, y, m, d ->
-                        // m: 0..11
-                        val picked = java.time.LocalDate.of(y, m + 1, d)
-                        statsVm.setDate(picked)
-                    },
-                    statsDate.year, statsDate.monthValue - 1, statsDate.dayOfMonth
-                )
-            }
-
-            // Подпись «за сегодня» / «за дату»
-            val msk = java.time.ZoneId.of("Europe/Moscow")
-            val todayMsk = remember { java.time.LocalDate.now(msk) }
-            val statsDateLabel = if (statsDate == todayMsk) "за сегодня"
-            else "за ${statsDate.format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"))}"
 
             HomeScreen(
                 onAddItem = { nav.navigate("scan") },
@@ -131,16 +110,15 @@ fun MainNavHost(
                 onPrintLabel = { nav.navigate("print_scan") },
                 onReceiveReturn = { nav.navigate("return_scan") },
                 onReconcile = { nav.navigate("reconcile_home") },
-                statsDateLabel = statsDateLabel,
+                // статистика — только «за сегодня»
                 statsNonNlo = statsNonNlo,
                 statsNlo = statsNlo,
                 statsLoading = statsLoading,
-                onPickDate = { dp.show() },
+                // фонарик
                 torchOn = torchOn,
                 onToggleTorch = { settingsVm.setTorchEnabled(it) }
             )
         }
-
 
         /* ------------ ДОБАВИТЬ ТОВАР ------------ */
         composable("scan") {
@@ -280,7 +258,7 @@ fun MainNavHost(
                     session.setQuantity(0)
                     nav.navigate("result")
                 } else {
-                    nav.navigate("photo")
+                    nav.navigate("id_print")
                 }
             }
         }
@@ -525,7 +503,7 @@ fun MainNavHost(
             }
         }
 
-        // 2) Состояние, фото (фото — только при дефекте)
+        // 2) Состояние, фото + ВЫБОР ДЕЙСТВИЯ (НОВОЕ)
         composable("return_condition") {
             val returnVm: ReturnViewModel = viewModel(activity)
             val dispatch by returnVm.dispatchNumber.collectAsState()
@@ -535,8 +513,7 @@ fun MainNavHost(
             val hasDefect by returnVm.hasDefect.collectAsState()
             val defectDesc by returnVm.defectDesc.collectAsState()
             val photos by returnVm.photos.collectAsState()
-
-
+            val decision by returnVm.decision.collectAsState()   // ← НОВОЕ (decision)
 
             ReturnConditionScreen(
                 dispatchNumber = dispatch,
@@ -546,25 +523,23 @@ fun MainNavHost(
                 hasDefectInit = hasDefect,
                 defectDescInit = defectDesc,
                 photosCount = photos.size,
+                decisionInit = decision,                           // ← НОВОЕ
                 onChangeState = { has, desc ->
                     returnVm.setDefect(has, desc)
                     if (!has) returnVm.setPhotos(emptyList())
                 },
+                onSelectDecision = { returnVm.setDecision(it) },   // ← НОВОЕ
                 onOpenPhotos = { if (hasDefect) nav.navigate("return_photos") },
                 onNext = {
-                    // ← НОВОЕ: не позволяем идти дальше, если есть дефект и нет фото
                     if (hasDefect && photos.isEmpty()) return@ReturnConditionScreen
-                    if (hasDefect) {
-                        nav.navigate("return_result")
-                    } else {
-                        nav.navigate("return_print")
-                    }
+                    nav.navigate("return_result")
                 },
                 onBack = { nav.popBackStack() }
             )
         }
 
-            // 2a) Фото — защита от прямого попадания без дефекта
+
+        // 2a) Фото — защита от прямого попадания без дефекта
         composable("return_photos") {
             val returnVm: ReturnViewModel = viewModel(activity)
             val hasDefect by returnVm.hasDefect.collectAsState()
@@ -578,6 +553,7 @@ fun MainNavHost(
         }
 
         // 2b) Отправка в Диск + запись в таблицу
+        // 2b) Отправка в Диск + запись в таблицу
         composable("return_result") {
             val returnVm: ReturnViewModel = viewModel(activity)
             val dispatch by returnVm.dispatchNumber.collectAsState()
@@ -585,6 +561,7 @@ fun MainNavHost(
             val hasDefect by returnVm.hasDefect.collectAsState()
             val defectDesc by returnVm.defectDesc.collectAsState()
             val photos by returnVm.photos.collectAsState()
+            val decision by returnVm.decision.collectAsState()   // ← НОВОЕ
 
             ReturnResultScreen(
                 context = LocalContext.current,
@@ -595,6 +572,7 @@ fun MainNavHost(
                 photos = photos,
                 userFullName = fullName,
                 oauthToken = oauthToken,
+                decision = decision,                              // ← НОВОЕ
                 onNextToPrint = { nav.navigate("return_print") },
                 onBackHome = {
                     val popped = nav.popBackStack("home", false)
@@ -608,6 +586,7 @@ fun MainNavHost(
                 }
             )
         }
+
 
         // 3) Печать (показываем dispatch+barcode, печатаем barcode)
         composable("return_print") {
@@ -676,6 +655,17 @@ fun MainNavHost(
                 torchOn = torchOn,
                 onNextItem = { /* остаться тут */ },
                 onFinish = { nav.navigate("reconcile_done") }
+            )
+        }
+
+        composable("id_print") {
+            val barcode by session.barcode.collectAsState()
+
+            IdentifyPrintScreen(
+                barcode = barcode,
+                onSkip = { nav.navigate("photo") },
+                onPrinted = { nav.navigate("photo") },
+                onBack = { nav.popBackStack() }
             )
         }
 

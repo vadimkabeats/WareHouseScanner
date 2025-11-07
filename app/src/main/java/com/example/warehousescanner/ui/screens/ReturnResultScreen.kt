@@ -21,6 +21,7 @@ fun ReturnResultScreen(
     photos: List<Uri>,
     userFullName: String,
     oauthToken: String,
+    decision: String,                        // НОВОЕ
     onNextToPrint: () -> Unit,
     onBackHome: () -> Unit
 ) {
@@ -33,17 +34,18 @@ fun ReturnResultScreen(
 
     val canSend = !sentOk &&
             printBarcode.isNotBlank() &&
-            (!hasDefect || photos.isNotEmpty())        // ← НОВОЕ
+            decision.isNotBlank() &&
+            (!hasDefect || photos.isNotEmpty())
 
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Отправка данных по возврату", style = MaterialTheme.typography.h6)
         Text("Dispatch №: $dispatchNumber")
         Text("ШК (печать): $printBarcode")
+        Text("Что делаем: ${decision.ifBlank { "—" }}")      // НОВОЕ
         Text("Дефект: ${if (hasDefect) "Есть" else "Нет"}")
         if (hasDefect && defectDesc.isNotBlank()) Text("Описание: $defectDesc")
         Text("Фото: ${photos.size} шт.")
 
-        // Предупреждение, если попытались зайти сюда с дефектом, но без фото
         if (hasDefect && photos.isEmpty()) {
             Text(
                 "При наличии дефектов необходимо добавить хотя бы 1 фото",
@@ -59,7 +61,6 @@ fun ReturnResultScreen(
         } else {
             Button(
                 onClick = {
-                    // (логика отправки без изменений)
                     scope.launch {
                         isLoading = true
                         message = ""
@@ -70,7 +71,8 @@ fun ReturnResultScreen(
                                 "hasDefect" to hasDefect,
                                 "defectDesc" to (if (hasDefect) defectDesc else ""),
                                 "photosCount" to photos.size,
-                                "user" to userFullName
+                                "user" to userFullName,
+                                "decision" to decision                     // НОВОЕ (в metadata на Диске)
                             )
                             val yd = YandexDiskClient.uploadReturnBundleJson(
                                 context = context,
@@ -85,7 +87,8 @@ fun ReturnResultScreen(
                                 dispatchNumber = dispatchNumber,
                                 barcode = printBarcode,
                                 defectDesc = if (hasDefect) defectDesc else "",
-                                photoLinks = publicUrls
+                                photoLinks = publicUrls,
+                                decision = decision                        // НОВОЕ
                             )
                             if (res.ok == true) {
                                 sentOk = true
@@ -102,7 +105,7 @@ fun ReturnResultScreen(
                         }
                     }
                 },
-                enabled = canSend,                      // ← НОВОЕ
+                enabled = canSend,
                 modifier = Modifier.fillMaxWidth()
             ) { Text(if (sentOk) "Уже отправлено" else "Отправить") }
 
