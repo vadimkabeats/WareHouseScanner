@@ -133,7 +133,7 @@ fun MainNavHost(
                 session.setPhotos(emptyList())
                 session.setDefect(false, "")
                 session.setQuantity(0)
-
+                session.setStrongPackaging(false)
                 session.setBarcode(code)
                 session.markScanStart()
                 nav.navigate("lookup")
@@ -271,9 +271,10 @@ fun MainNavHost(
         }
 
         composable("defect") {
-            DefectScreen { hasDefect, desc, qty ->
+            DefectScreen { hasDefect, desc, qty, strongPackaging ->
                 session.setDefect(hasDefect, desc)
                 session.setQuantity(qty)
+                session.setStrongPackaging(strongPackaging)
                 nav.navigate("result")
             }
         }
@@ -289,6 +290,7 @@ fun MainNavHost(
             val defectDesc by session.defectDesc.collectAsState()
             val quantity by session.quantity.collectAsState()
             val scanStartMs by session.scanStartMs.collectAsState()
+            val strongPackaging by session.strongPackaging.collectAsState()
 
             fun goHomeSafe() {
                 val popped = nav.popBackStack("home", false)
@@ -309,6 +311,7 @@ fun MainNavHost(
                 photos = photos,
                 defectResult = hasDefect to defectDesc,
                 quantity = quantity,
+                strongPackaging = strongPackaging,
                 userFullName = fullName,
                 scanStartMs = scanStartMs,
                 oauthToken = oauthToken,

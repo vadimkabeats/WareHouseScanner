@@ -15,7 +15,8 @@ data class AfterUploadRequest(
     val qty: Int,
     val durationSec: Int,
     val defects: String,
-    val photos: List<String>
+    val photos: List<String>,
+    val strongPackaging: String
 )
 
 data class TrackLookupRequest(
@@ -30,7 +31,10 @@ data class TrackLookupResponse(
     val track: String? = null,
     val full: String? = null,
     val multi: Boolean? = null,
-    val error: String? = null
+    val error: String? = null,
+    val qty_ship: Int?,      // "Количество" / "к отправке"
+    val qty_total: Int?,     // "Кол-во при приемке"
+    val strong_pack: Boolean?
 )
 
 data class PutAwayRequest(

@@ -4,7 +4,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
+//noinspection UsingMaterialAndMaterial3Libraries
 import androidx.compose.material.MaterialTheme
+//noinspection UsingMaterialAndMaterial3Libraries
 import androidx.compose.material.Surface
 import androidx.navigation.compose.rememberNavController
 import com.example.warehousescanner.data.GoogleSheetClient
@@ -16,10 +18,17 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val oauthToken = "y0__xDC-PqfqveAAhiItjgguIj3xRMa5L1mPbJOCrNGULQHPk3yPF52zA"
-        val scriptUrl  = "https://script.google.com/macros/s/AKfycbxB4p0Axx7vGLJGr_L4l8jsy2zwCQbS1-1lEJWSf8m8lDF1FhqxLto0DynwnfO9/exec"
-        val apiKey     = "SECRET_KEY"
 
-        GoogleSheetClient.init(scriptUrl, apiKey)
+        // FastAPI (/api) — для Аккаунтов/Базы/Сканировки/Хранения/Статистики
+        //val fastApiUrl = "https://warehouseapi123.loca.lt/api"
+
+        // Apps Script exec — для Возвратов/Этикеток/Сверки (ПОСТАВЬ СВОЙ exec URL!)
+        val gasExecUrl = "https://script.google.com/macros/s/AKfycby76ct_HbxRL2F69iFNzolBrMQvJoWyPyiacuex8HMxjhFb27piTzl907Usf7K5Y-0/exec"
+
+        val apiKey = "SECRET_KEY" // если Apps Script проверяет key — укажи его здесь
+
+        GoogleSheetClient.init(gasExecUrl, apiKey)
+
         WindowCompat.setDecorFitsSystemWindows(window, true)
         setContent {
             val nav = rememberNavController()

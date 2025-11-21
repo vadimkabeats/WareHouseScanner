@@ -12,7 +12,7 @@ class SessionViewModel : ViewModel() {
     private val _url = MutableStateFlow("")
     val url: StateFlow<String> = _url
 
-    private val _checkStatus = MutableStateFlow("") // "match" | "mismatch"
+    private val _checkStatus = MutableStateFlow("") // "match" | "mismatch" | "nlo" и т.д.
     val checkStatus: StateFlow<String> = _checkStatus
 
     private val _checkComment = MutableStateFlow("")
@@ -36,13 +36,30 @@ class SessionViewModel : ViewModel() {
     private val _scanStartMs = MutableStateFlow(0L)
     val scanStartMs: StateFlow<Long> = _scanStartMs
 
+    // НОВОЕ: флаг "усиленная упаковка"
+    private val _strongPackaging = MutableStateFlow(false)
+    val strongPackaging: StateFlow<Boolean> = _strongPackaging
+
     fun setBarcode(value: String) { _barcode.value = value }
     fun setUrl(value: String) { _url.value = value }
-    fun setCheckResult(status: String, c: String) { _checkStatus.value = status; _checkComment.value = c }
+
+    fun setCheckResult(status: String, c: String) {
+        _checkStatus.value = status
+        _checkComment.value = c
+    }
+
     fun setNewLink(value: String) { _newLink.value = value }
     fun setPhotos(list: List<Uri>) { _photos.value = list }
-    fun setDefect(has: Boolean, desc: String) { _hasDefect.value = has; _defectDesc.value = desc }
+
+    fun setDefect(has: Boolean, desc: String) {
+        _hasDefect.value = has
+        _defectDesc.value = desc
+    }
+
     fun setQuantity(qty: Int) { _quantity.value = qty.coerceAtLeast(1) }
+
+    // НОВОЕ: сеттер для упаковки
+    fun setStrongPackaging(value: Boolean) { _strongPackaging.value = value }
 
     fun markScanStart() { _scanStartMs.value = System.currentTimeMillis() }
 }

@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothDevice
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -17,7 +18,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.activity.ComponentActivity
 import com.example.warehousescanner.data.GoogleSheetClient
 import com.example.warehousescanner.printer.LabelPrinter
 import com.example.warehousescanner.viewmodel.PrintSessionViewModel
@@ -41,6 +41,11 @@ fun PrintPreviewScreen(
     var isMulti by remember { mutableStateOf<Boolean?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
 
+    // НОВОЕ: поля из листа "Этикетки"
+    var qtyToShip by remember { mutableStateOf<Int?>(null) }   // "Количество" (к отправке)
+    var qtyTotal by remember { mutableStateOf<Int?>(null) }    // "Кол-во при приемке"
+    var strongPack by remember { mutableStateOf<Boolean?>(null) } // усиленная упаковка
+
     LaunchedEffect(code) {
         isLoading = true
         loadError = null
@@ -50,16 +55,27 @@ fun PrintPreviewScreen(
                 trackShort = resp.track?.takeIf { it.isNotBlank() }
                 trackFull  = (resp.full ?: resp.track)?.takeIf { !it.isNullOrBlank() }
                 isMulti    = resp.multi == true
+
+                // НОВОЕ: сохраняем значения
+                qtyToShip   = resp.qty_ship
+                qtyTotal    = resp.qty_total
+                strongPack  = resp.strong_pack
             } else {
                 trackShort = null
                 trackFull  = null
                 isMulti    = null
+                qtyToShip  = null
+                qtyTotal   = null
+                strongPack = null
             }
         } catch (e: Exception) {
             loadError = e.localizedMessage ?: "Ошибка загрузки"
             trackShort = null
             trackFull = null
             isMulti = null
+            qtyToShip  = null
+            qtyTotal   = null
+            strongPack = null
         }
         isLoading = false
     }
@@ -85,6 +101,9 @@ fun PrintPreviewScreen(
             !isPrinting &&
             !shouldSkipPrint
 
+    val warnColor = MaterialTheme.colors.error
+    val normalColor = MaterialTheme.colors.onBackground
+
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         Text("Печать этикетки", style = MaterialTheme.typography.h6)
         Spacer(Modifier.height(8.dp))
@@ -97,6 +116,35 @@ fun PrintPreviewScreen(
             trackFull.isNullOrBlank() -> Text("Трек-номер не найден")
             else -> {
                 Text("Трек-номер: ${trackFull!!}")
+
+                // НОВОЕ: блок с количеством и усиленной упаковкой
+                qtyToShip?.let { qty ->
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "К отправке: $qty",
+                        color = if (qty > 1) warnColor else normalColor,
+                        style = MaterialTheme.typography.body1
+                    )
+                }
+
+                qtyTotal?.let { qty ->
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = "Всего товара: $qty",
+                        color = if (qty > 1) warnColor else normalColor,
+                        style = MaterialTheme.typography.body1
+                    )
+                }
+
+                if (strongPack == true) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "ТРЕБУЕТ УСИЛЕННОЙ УПАКОВКИ",
+                        color = warnColor,
+                        style = MaterialTheme.typography.body1
+                    )
+                }
+
                 if (isMulti == true) {
                     Spacer(Modifier.height(4.dp))
                     Text("Несколько товаров: Да", style = MaterialTheme.typography.caption)
@@ -112,8 +160,10 @@ fun PrintPreviewScreen(
                     Spacer(Modifier.height(2.dp))
                     Text(trackFull!!, style = MaterialTheme.typography.body1)
                     Spacer(Modifier.height(6.dp))
-                    Text("Положи его в эту коробку. Печатать этикетку не нужно.",
-                        style = MaterialTheme.typography.caption)
+                    Text(
+                        "Положи его в эту коробку. Печатать этикетку не нужно.",
+                        style = MaterialTheme.typography.caption
+                    )
                 }
             }
         }
@@ -188,7 +238,7 @@ fun PrintPreviewScreen(
                                 status = "Отправлено на печать"
                                 // 1) помечаем локально
                                 printSession.markPrinted(full)
-                                // 2) НОВОЕ: фиксируем в таблице «Доставка»
+                                // 2) запись статуса в таблицу «Доставка»
                                 runCatching {
                                     GoogleSheetClient.labelPrinted(
                                         trackFull = full,
@@ -196,7 +246,6 @@ fun PrintPreviewScreen(
                                         printedAtMs = System.currentTimeMillis()
                                     )
                                 }.onFailure { e ->
-                                    // не блокируем пользовательский поток — просто покажем статус
                                     status = "Печать ок, но запись статуса не удалась: ${e.localizedMessage}"
                                 }
                             }.onFailure { e ->
@@ -224,6 +273,7 @@ fun PrintPreviewScreen(
         )
     }
 }
+
 @Composable
 fun PickPrinterDialog(
     onPick: (BluetoothDevice) -> Unit,

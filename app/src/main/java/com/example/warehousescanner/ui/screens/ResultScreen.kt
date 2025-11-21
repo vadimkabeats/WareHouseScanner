@@ -19,6 +19,7 @@ fun ResultScreen(
     photos: List<Uri>,
     defectResult: Pair<Boolean, String>,
     quantity: Int,
+    strongPackaging: Boolean,
     userFullName: String,
     scanStartMs: Long,
     oauthToken: String,
@@ -43,7 +44,7 @@ fun ResultScreen(
         else -> rawStatus
     }
 
-
+    val strongPackagingText = if (isNlo) "" else if (strongPackaging) "да" else "нет"
     val photosForUpload = if (isNlo) emptyList() else photos
     val qtyForSheet     = if (isNlo) 0 else quantity
     val defectsForSheet = if (isNlo) "" else if (defectResult.first) defectResult.second else ""
@@ -62,6 +63,7 @@ fun ResultScreen(
         if (!isNlo) {
             Text("Дефект: ${if (defectResult.first) "Есть" else "Нет"}")
             if (defectResult.first && defectsForSheet.isNotBlank()) Text("Описание дефекта: $defectsForSheet")
+            Text("Усиленная упаковка: ${if (strongPackaging) "да" else "нет"}")
         }
 
         Spacer(Modifier.weight(1f))
@@ -93,6 +95,7 @@ fun ResultScreen(
                                     "newLink" to newLinkForSheet,
                                     "comment" to rawComment,
                                     "quantity" to qtyForSheet,
+                                    "strongPackaging" to strongPackagingText,
                                     "photosCount" to photosForUpload.size,
                                     "defect" to defectResult.first,
                                     "defectDescription" to defectsForSheet,
@@ -121,7 +124,8 @@ fun ResultScreen(
                                 qty         = qtyForSheet,
                                 durationSec = durationSec,
                                 defects     = defectsForSheet,
-                                photos      = publicUrls
+                                photos      = publicUrls,
+                                strongPackaging = strongPackagingText
                             )
                             GoogleSheetClient.saveAfterUpload(req)
 

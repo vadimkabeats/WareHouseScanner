@@ -19,7 +19,7 @@ import java.util.UUID
 import kotlin.time.Duration.Companion.milliseconds
 
 object LabelPrinter {
-
+    private const val LABEL_LEFT_MARGIN = 24
     private val SPP_UUID: UUID =
         UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
 
@@ -173,7 +173,8 @@ object LabelPrinter {
             val wide   = when { len <= 18 -> 6; len <= 24 -> 5; else -> 3 }
             val baseBcHeight = when { len <= 18 -> 190; len <= 24 -> 180; else -> 165 }
 
-            val left = 8
+            // Отступ слева — используем общую константу
+            val left = LABEL_LEFT_MARGIN
             val top  = 12
 
             val layout = if (!captionText.isNullOrBlank())
@@ -265,14 +266,12 @@ object LabelPrinter {
 
             val len = barcodeText.length
 
-            // БЫЛО (обычное): narrow 3/2/1, wide 6/5/3, height ~190/180/165
-            // СТАЛО (компакт): чуть тоньше и ниже
             val narrow = when { len <= 18 -> 2; len <= 24 -> 2; else -> 1 }
             val wide   = when { len <= 18 -> 4; len <= 24 -> 4; else -> 3 }
             val baseBcHeight = when { len <= 18 -> 170; len <= 24 -> 160; else -> 150 }
 
-            // Чуть больше тихая зона слева
-            val left = 20
+            // Используем тот же отступ слева, что и в обычной печати
+            val left = LABEL_LEFT_MARGIN
             val top  = 12
 
             val layout = if (!captionText.isNullOrBlank())
