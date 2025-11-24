@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.warehousescanner.data.GoogleSheetClient
 import com.example.warehousescanner.printer.LabelPrinter
+import com.example.warehousescanner.printer.PdfLabelPrinter   // ← НОВЫЙ импорт
 import com.example.warehousescanner.viewmodel.PrintSessionViewModel
 import kotlinx.coroutines.launch
 
@@ -42,9 +43,12 @@ fun PrintPreviewScreen(
     var loadError by remember { mutableStateOf<String?>(null) }
 
     // НОВОЕ: поля из листа "Этикетки"
-    var qtyToShip by remember { mutableStateOf<Int?>(null) }   // "Количество" (к отправке)
-    var qtyTotal by remember { mutableStateOf<Int?>(null) }    // "Кол-во при приемке"
+    var qtyToShip by remember { mutableStateOf<Int?>(null) }      // "Количество" (к отправке)
+    var qtyTotal by remember { mutableStateOf<Int?>(null) }       // "Кол-во при приемке"
     var strongPack by remember { mutableStateOf<Boolean?>(null) } // усиленная упаковка
+
+    // НОВОЕ: URL PDF-этикетки
+    var labelUrl by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(code) {
         isLoading = true
@@ -56,10 +60,11 @@ fun PrintPreviewScreen(
                 trackFull  = (resp.full ?: resp.track)?.takeIf { !it.isNullOrBlank() }
                 isMulti    = resp.multi == true
 
-                // НОВОЕ: сохраняем значения
                 qtyToShip   = resp.qty_ship
                 qtyTotal    = resp.qty_total
                 strongPack  = resp.strong_pack
+
+                labelUrl    = resp.label_url?.takeIf { !it.isNullOrBlank() } // ← НОВОЕ
             } else {
                 trackShort = null
                 trackFull  = null
@@ -67,6 +72,7 @@ fun PrintPreviewScreen(
                 qtyToShip  = null
                 qtyTotal   = null
                 strongPack = null
+                labelUrl   = null
             }
         } catch (e: Exception) {
             loadError = e.localizedMessage ?: "Ошибка загрузки"
@@ -76,6 +82,7 @@ fun PrintPreviewScreen(
             qtyToShip  = null
             qtyTotal   = null
             strongPack = null
+            labelUrl   = null
         }
         isLoading = false
     }
@@ -94,9 +101,17 @@ fun PrintPreviewScreen(
             (lastPrintedFull != null) &&
             (lastPrintedFull == trackFull)
 
-    val canPrint = !isLoading &&
+    val canPrintText = !isLoading &&
             loadError == null &&
             !trackShort.isNullOrBlank() &&
+            printer != null &&
+            !isPrinting &&
+            !shouldSkipPrint
+
+    val canPrintPdf = !isLoading &&
+            loadError == null &&
+            !trackShort.isNullOrBlank() &&
+            !labelUrl.isNullOrBlank() &&
             printer != null &&
             !isPrinting &&
             !shouldSkipPrint
@@ -117,7 +132,6 @@ fun PrintPreviewScreen(
             else -> {
                 Text("Трек-номер: ${trackFull!!}")
 
-                // НОВОЕ: блок с количеством и усиленной упаковкой
                 qtyToShip?.let { qty ->
                     Spacer(Modifier.height(4.dp))
                     Text(
@@ -148,6 +162,20 @@ fun PrintPreviewScreen(
                 if (isMulti == true) {
                     Spacer(Modifier.height(4.dp))
                     Text("Несколько товаров: Да", style = MaterialTheme.typography.caption)
+                }
+
+                if (labelUrl.isNullOrBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "PDF-этикетка не найдена — доступна только обычная печать.",
+                        style = MaterialTheme.typography.caption
+                    )
+                } else {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Для этого товара есть PDF-этикетка.",
+                        style = MaterialTheme.typography.caption
+                    )
                 }
             }
         }
@@ -216,8 +244,9 @@ fun PrintPreviewScreen(
             ) { Text("Назад") }
 
             if (!shouldSkipPrint) {
+                // Кнопка "Печать" (по старому, трек)
                 Button(
-                    enabled = canPrint,
+                    enabled = canPrintText,
                     onClick = {
                         if (Build.VERSION.SDK_INT >= 31 && !hasBtConnectPermission(ctx)) {
                             requestBt.launch(Manifest.permission.BLUETOOTH_CONNECT)
@@ -232,13 +261,10 @@ fun PrintPreviewScreen(
                         status = null
                         scope.launch {
                             runCatching {
-                                // Печать
                                 LabelPrinter.printTsplFixedSmall(ctx, d, short, full)
                             }.onSuccess {
                                 status = "Отправлено на печать"
-                                // 1) помечаем локально
                                 printSession.markPrinted(full)
-                                // 2) запись статуса в таблицу «Доставка»
                                 runCatching {
                                     GoogleSheetClient.labelPrinted(
                                         trackFull = full,
@@ -257,6 +283,52 @@ fun PrintPreviewScreen(
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(if (isPrinting) "Печать…" else "Печать")
+                }
+
+                // Кнопка "Печать PDF"
+                Button(
+                    enabled = canPrintPdf,
+                    onClick = {
+                        if (Build.VERSION.SDK_INT >= 31 && !hasBtConnectPermission(ctx)) {
+                            requestBt.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                            status = "Нужно разрешение на Bluetooth"
+                            return@Button
+                        }
+                        val d = printer ?: return@Button.also { status = "Принтер не выбран" }
+                        val short = trackShort ?: return@Button.also { status = "Нет короткого трека" }
+                        val full  = trackFull ?: short
+                        val url   = labelUrl ?: return@Button.also { status = "Нет ссылки на PDF" }
+
+                        isPrinting = true
+                        status = null
+                        scope.launch {
+                            runCatching {
+                                PdfLabelPrinter.printPdfLabelFromUrl(
+                                    context = ctx,
+                                    device = d,
+                                    pdfUrl = url
+                                )
+                            }.onSuccess {
+                                status = "PDF отправлен на печать"
+                                printSession.markPrinted(full)
+                                runCatching {
+                                    GoogleSheetClient.labelPrinted(
+                                        trackFull = full,
+                                        trackShort = short,
+                                        printedAtMs = System.currentTimeMillis()
+                                    )
+                                }.onFailure { e ->
+                                    status = "PDF напечатан, но запись статуса не удалась: ${e.localizedMessage}"
+                                }
+                            }.onFailure { e ->
+                                status = "Ошибка печати PDF: ${e.localizedMessage}"
+                            }
+                            isPrinting = false
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(if (isPrinting) "Печать…" else "Печать PDF")
                 }
             }
         }

@@ -16,14 +16,10 @@ private class RetryOnTimeoutInterceptor(private val retries: Int = 1) : Intercep
         var tryCount = 0
         var lastEx: IOException? = null
         while (tryCount <= retries) {
-            try {
-                return chain.proceed(chain.request())
-            } catch (e: IOException) {
+            try { return chain.proceed(chain.request()) }
+            catch (e: IOException) {
                 lastEx = e
-                if (e is SocketTimeoutException && tryCount < retries) {
-                    tryCount++
-                    continue
-                }
+                if (e is SocketTimeoutException && tryCount < retries) { tryCount++; continue }
                 throw e
             }
         }
@@ -32,28 +28,26 @@ private class RetryOnTimeoutInterceptor(private val retries: Int = 1) : Intercep
 }
 
 /**
- * Теперь ВСЁ через Apps Script:
- * - auth / scanExists / lookup / afterUpload / putAway / dailyStats
- * - lookupTrack / returnLookup / saveReturn / reconcileInit / labelPrinted
+ * Универсальный клиент:
+ * - fastApiUrl → FastAPI (/api) для: auth, lookup, scanExists, afterUpload, putAway, dailyStats
+ * - gasUrl     → Apps Script (exec) для: lookupTrack, returnLookup, saveReturn, reconcileInit, labelPrinted
+ *
+ * Сигнатуры публичных методов НЕ меняем — экраны трогать не надо.
  */
 object GoogleSheetClient {
+    private lateinit var fastApi: FastApi
     private lateinit var gasApi: GoogleSheetApi
 
-    private var gasUrl: String = ""
-    private var apiKey: String = ""
+    private var fastApiUrl: String = "http://158.160.87.160:8000/api"
+    private var gasUrl: String = "https://script.google.com/macros/s/AKfycbxoFiaPoAehzGlDMw3FNVe8u6ivWkmN5I7_chlpq1LLrHIdKUzDOHPn_dGPlXD72U0/exec"         // ТВОЙ Apps Script exec URL
+    private var apiKey: String = "SECRET_KEY"         // ключ для Apps Script (если используется)
 
-    /**
-     * Инициализация ТОЛЬКО для Apps Script.
-     * fastApi нам больше не нужен.
-     */
-    fun init(gasExecUrl: String, key: String) {
-        this.gasUrl = gasExecUrl
-        this.apiKey = key
+    fun init(fastApiUrl: String, gasExecUrl: String, key: String) {
+        this.fastApiUrl = fastApiUrl.trimEnd('/')    // .../api
+        this.gasUrl     = gasExecUrl                 // .../exec
+        this.apiKey     = key
 
-        val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
-        }
-
+        val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY }
         val ok = OkHttpClient.Builder()
             .addInterceptor(logging)
             .addInterceptor(RetryOnTimeoutInterceptor(retries = 1))
@@ -66,85 +60,52 @@ object GoogleSheetClient {
 
         val gson = GsonBuilder().setLenient().create()
 
-        val retrofit = Retrofit.Builder()
-            // Базовый URL-заглушка, реальный URL всегда передаём через @Url
-            .baseUrl("https://script.google.com/")
+        // Retrofit требует валидный baseUrl, даже если используем @Url — ставим заглушку
+        fun buildRetrofit(): Retrofit = Retrofit.Builder()
+            .baseUrl("https://localhost/") // не используется благодаря @Url
             .client(ok)
             .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
 
-        gasApi = retrofit.create(GoogleSheetApi::class.java)
+        fastApi = buildRetrofit().create(FastApi::class.java)
+        gasApi  = buildRetrofit().create(GoogleSheetApi::class.java)
     }
 
-    /* ---------------- БАЗА/СКАНИРОВКА/ХРАНЕНИЕ/АККАУНТЫ ---------------- */
+    /* ---------------- FastAPI (PostgreSQL) ---------------- */
 
-    // Поиск ссылки по ШК (GET /exec?barcode=...&key=...)
-    suspend fun lookup(barcode: String): LookupResponse =
-        gasApi.lookup(gasUrl, barcode, apiKey)
+    suspend fun lookup(barcode: String) =
+        fastApi.lookup(fastApiUrl, barcode)
 
-    // Добавление/обновление строки в листе "Сканировка" (mode = afterUpload)
-    suspend fun saveAfterUpload(req: AfterUploadRequest): SaveResponse =
-        gasApi.saveAfterUpload(gasUrl, apiKey, req)
+    suspend fun saveAfterUpload(req: AfterUploadRequest) =
+        fastApi.saveAfterUpload(fastApiUrl, req)
 
-    // Хранение (лист "Хранение", mode = putAway)
-    suspend fun putAway(
-        itemBarcode: String,
-        cellBarcode: String,
-        durationSec: Int,
-        userFio: String
-    ): SaveResponse =
-        gasApi.putAway(
-            gasUrl,
-            apiKey,
-            PutAwayRequest(
-                user = userFio,
-                barcode = itemBarcode,
-                cell = cellBarcode,
-                durationSec = durationSec
-            )
+    suspend fun putAway(itemBarcode: String, cellBarcode: String, durationSec: Int, userFio: String) =
+        fastApi.putAway(
+            fastApiUrl,
+            PutAwayRequest(user = userFio, barcode = itemBarcode, cell = cellBarcode, durationSec = durationSec)
         )
 
-    // Логин по фамилии/имени/паролю (лист "Аккаунты", mode = auth)
-    suspend fun auth(first: String, last: String, password: String): AuthResponse =
-        gasApi.auth(
-            gasUrl,
-            apiKey,
+    suspend fun auth(first: String, last: String, password: String) =
+        fastApi.auth(
+            fastApiUrl,
             AuthRequest(firstName = first, lastName = last, password = password)
         )
 
-    // Проверка дубля в "Сканировка" (mode = scanExists)
     suspend fun scanExists(barcode: String): Boolean {
-        val resp = gasApi.scanExists(
-            gasUrl,
-            apiKey,
-            ScanExistsRequest(barcode = barcode)
-        )
+        val resp = fastApi.scanExists(fastApiUrl, ScanExistsRequest(barcode = barcode))
         return resp.ok && (resp.exists == true)
     }
 
-    // Статистика за день (mode = dailyStats)
     suspend fun dailyStats(dateIso: String?, user: String?): DailyStatsResponse =
-        gasApi.dailyStats(
-            gasUrl,
-            apiKey,
-            DailyStatsRequest(date = dateIso, user = user)
-        )
+        fastApi.dailyStats(fastApiUrl, DailyStatsRequest(date = dateIso, user = user))
 
-    /* ---------------- ЭТИКЕТКИ / ВОЗВРАТЫ / СВЕРКА ---------------- */
+    /* ---------------- Apps Script (Возвраты/Этикетки) ---------------- */
 
-    suspend fun lookupTrack(barcode: String, gid: Long = 522894316L): TrackLookupResponse =
-        gasApi.lookupTrack(
-            gasUrl,
-            apiKey,
-            TrackLookupRequest(barcode = barcode, gid = gid)
-        )
+    suspend fun lookupTrack(barcode: String, gid: Long = 522894316L) =
+        gasApi.lookupTrack(gasUrl, apiKey, TrackLookupRequest(barcode = barcode, gid = gid))
 
     suspend fun returnLookup(dispatchNumber: String): ReturnLookupResponse =
-        gasApi.returnLookup(
-            gasUrl,
-            apiKey,
-            ReturnLookupRequest(dispatchNumber = dispatchNumber)
-        )
+        gasApi.returnLookup(gasUrl, apiKey, ReturnLookupRequest(dispatchNumber = dispatchNumber))
 
     suspend fun saveReturn(
         user: String,
@@ -166,11 +127,7 @@ object GoogleSheetClient {
     }
 
     suspend fun reconcileInit(): List<ReconcileItem> {
-        val resp = gasApi.reconcileInit(
-            gasUrl,
-            apiKey,
-            ReconcileInitRequest()
-        )
+        val resp = gasApi.reconcileInit(gasUrl, apiKey, ReconcileInitRequest())
         if (!resp.ok) error(resp.error ?: "reconcileInit failed")
         return resp.items
     }

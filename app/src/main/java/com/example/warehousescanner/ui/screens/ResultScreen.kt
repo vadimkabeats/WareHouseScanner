@@ -51,7 +51,12 @@ fun ResultScreen(
     val baseLinkForSheet= if (isNlo) "" else scanUrl
     val newLinkForSheet = if (isNlo) "" else rawNewLink
 
-    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
         Text("Обзор данных", style = MaterialTheme.typography.h6)
         Text("Штрих-код: $barcode")
         Text("URL: ${baseLinkForSheet.ifBlank { "—" }}")
@@ -62,7 +67,7 @@ fun ResultScreen(
         Text("Фото: ${photosForUpload.size} шт.")
         if (!isNlo) {
             Text("Дефект: ${if (defectResult.first) "Есть" else "Нет"}")
-            if (defectResult.first && defectsForSheet.isNotBlank()) Text("Описание дефекта: $defectsForSheet")
+            if (defectsForSheet.isNotBlank()) Text("Описание дефекта: $defectsForSheet")
             Text("Усиленная упаковка: ${if (strongPackaging) "да" else "нет"}")
         }
 
@@ -83,11 +88,16 @@ fun ResultScreen(
                         isLoading = true
                         message = ""
                         try {
+                            // Время от скана до отправки (как и было)
                             val nowMs = System.currentTimeMillis()
-                            val durationSec = kotlin.math.max(0, (((nowMs - scanStartMs) / 1000.0)).toInt())
+                            val durationSec = kotlin.math.max(
+                                0,
+                                (((nowMs - scanStartMs) / 1000.0)).toInt()
+                            )
 
+                            // 1) Отправка на Я.Диск (если не НЛО)
+                            var folderInfo: String? = null
                             val publicUrls: List<String> = if (!isNlo && photosForUpload.isNotEmpty()) {
-
                                 val meta = mapOf(
                                     "barcode" to barcode,
                                     "url" to baseLinkForSheet,
@@ -108,13 +118,13 @@ fun ResultScreen(
                                     metadata = meta,
                                     photos = photosForUpload
                                 )
-                                message = "Отправлено: ${yd.folder}"
+                                folderInfo = yd.folder
                                 yd.publicPhotoUrls.take(6)
                             } else {
-
                                 emptyList()
                             }
 
+                            // 2) Формируем запрос в FastAPI (запись в PostgreSQL)
                             val req = AfterUploadRequest(
                                 user        = userFullName,
                                 barcode     = barcode,
@@ -127,11 +137,27 @@ fun ResultScreen(
                                 photos      = publicUrls,
                                 strongPackaging = strongPackagingText
                             )
-                            GoogleSheetClient.saveAfterUpload(req)
 
-                            if (isNlo) {
-                                message = "Сохранено в таблицу (НЛО)"
+                            // 3) Замеряем время именно записи в таблицу
+                            val t0 = System.currentTimeMillis()
+                            GoogleSheetClient.saveAfterUpload(req)
+                            val t1 = System.currentTimeMillis()
+                            val writeMs = t1 - t0
+                            val writeSec = writeMs / 1000.0
+                            val writeInfo = "Время записи в таблицу: %.2f с".format(writeSec)
+
+                            // 4) Формируем итоговое сообщение (одно, чтобы ничего не "перезатиралось")
+                            message = if (isNlo) {
+                                "Сохранено в таблицу (НЛО)\n$writeInfo"
+                            } else {
+                                val head = if (folderInfo != null) {
+                                    "Отправлено: $folderInfo"
+                                } else {
+                                    "Отправлено без папки"
+                                }
+                                "$head\n$writeInfo"
                             }
+
                             sentOk = true
                         } catch (e: Exception) {
                             message = "Ошибка: ${e.localizedMessage}"
@@ -143,17 +169,23 @@ fun ResultScreen(
                 },
                 enabled = !sentOk,
                 modifier = Modifier.fillMaxWidth()
-            ) { Text(actionTitle) }
+            ) {
+                Text(actionTitle)
+            }
 
             if (sentOk) {
                 Spacer(Modifier.height(8.dp))
                 OutlinedButton(
                     onClick = onBackHome,
                     modifier = Modifier.fillMaxWidth()
-                ) { Text("Вернуться в главное меню") }
+                ) {
+                    Text("Вернуться в главное меню")
+                }
             }
         }
 
-        if (message.isNotBlank()) Text(message, color = MaterialTheme.colors.primary)
+        if (message.isNotBlank()) {
+            Text(message, color = MaterialTheme.colors.primary)
+        }
     }
 }

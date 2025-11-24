@@ -13,27 +13,36 @@ import com.example.warehousescanner.data.GoogleSheetClient
 import com.example.warehousescanner.ui.navigation.MainNavHost
 import androidx.core.view.WindowCompat
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.Modifier
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         val oauthToken = "y0__xDC-PqfqveAAhiItjgguIj3xRMa5L1mPbJOCrNGULQHPk3yPF52zA"
 
-        // FastAPI (/api) — для Аккаунтов/Базы/Сканировки/Хранения/Статистики
-        //val fastApiUrl = "https://warehouseapi123.loca.lt/api"
+        // FastAPI (/api) — для Аккаунтов / Базы / Сканировки / Хранения / Статистики
+        val fastApiUrl = "http://158.160.87.160:8000/api"
 
-        // Apps Script exec — для Возвратов/Этикеток/Сверки (ПОСТАВЬ СВОЙ exec URL!)
-        val gasExecUrl = "https://script.google.com/macros/s/AKfycby76ct_HbxRL2F69iFNzolBrMQvJoWyPyiacuex8HMxjhFb27piTzl907Usf7K5Y-0/exec"
+        // Apps Script exec — для Возвратов / Этикеток / Сверки / labelPrinted
+        val gasExecUrl = "https://script.google.com/macros/s/AKfycbyJHF4m-BTEkPQYlrjDfkqYXFUBEpraQff2TBRmwIyVsBOdkPU0D6RQnLE5V_UP_Mc/exec"
 
-        val apiKey = "SECRET_KEY" // если Apps Script проверяет key — укажи его здесь
+        // key должен совпадать с API_KEY в Apps Script
+        val apiKey = "SECRET_KEY"
 
-        GoogleSheetClient.init(gasExecUrl, apiKey)
+        // ВАЖНО: тут должна быть сигнатура из "постгресс-версии" GoogleSheetClient
+        GoogleSheetClient.init(
+            fastApiUrl = fastApiUrl,
+            gasExecUrl = gasExecUrl,
+            key = apiKey
+        )
 
         WindowCompat.setDecorFitsSystemWindows(window, true)
+
         setContent {
             val nav = rememberNavController()
             Surface(
-                modifier = androidx.compose.ui.Modifier
+                modifier = Modifier
                     .fillMaxSize()
                     .statusBarsPadding(),
                 color = MaterialTheme.colors.background

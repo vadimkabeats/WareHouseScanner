@@ -19,6 +19,11 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 import okhttp3.MediaType.Companion.toMediaType
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import java.io.ByteArrayOutputStream
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 
 data class YDUploadResult(val folder: String, val publicPhotoUrls: List<String>)
 
@@ -42,6 +47,41 @@ private class YdRetryOnTimeoutInterceptor(private val retries: Int = 2) : Interc
 object YandexDiskClient {
     private lateinit var api: YandexDiskApi
     private lateinit var authHeader: String
+    private suspend fun loadAndCompressJpeg(
+        context: Context,
+        uri: Uri,
+        maxSide: Int = 1600,   // максимальная сторона в пикселях
+        quality: Int = 80      // качество JPEG
+    ): ByteArray = withContext(Dispatchers.IO) {
+        // 1) Сначала только узнаём размеры
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(it, null, bounds)
+        }
+
+        val origW = bounds.outWidth
+        val origH = bounds.outHeight
+        if (origW <= 0 || origH <= 0) return@withContext ByteArray(0)
+
+        // 2) Считаем inSampleSize (во сколько раз уменьшать)
+        var sample = 1
+        val maxOrigSide = maxOf(origW, origH)
+        while (maxOrigSide / sample > maxSide) {
+            sample *= 2
+        }
+
+        val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+
+        val bmp = context.contentResolver.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(it, null, opts)
+        } ?: return@withContext ByteArray(0)
+
+        // 3) Сжимаем в JPEG
+        val out = ByteArrayOutputStream()
+        bmp.compress(Bitmap.CompressFormat.JPEG, quality, out)
+        bmp.recycle()
+        out.toByteArray()
+    }
 
     fun init(oauthToken: String) {
         authHeader = "OAuth $oauthToken"
@@ -98,27 +138,39 @@ object YandexDiskClient {
         metadata: Any,
         photos: List<Uri>
     ): YDUploadResult {
+        // 1) Папка под товар на сегодня
         val folder = ensureItemFolder(barcode)
 
+        // 2) metadata.json (один небольшой файл — можно как раньше, синхронно)
         val json = Gson().toJson(metadata).toByteArray(Charsets.UTF_8)
         uploadBytes("$folder/metadata.json", json)
 
-        val publicLinks = mutableListOf<String>()
-        photos.forEachIndexed { i, uri ->
-            val bytes = withContext(Dispatchers.IO) {
-                context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: ByteArray(0)
-            }
-            if (bytes.isEmpty()) return@forEachIndexed
+        // 3) Фото — сжимаем и грузим ПАРАЛЛЕЛЬНО
+        val publicLinks = coroutineScope {
+            photos.mapIndexed { i, uri ->
+                async(Dispatchers.IO) {
+                    // 3.1) читаем и сжимаем
+                    val bytes = loadAndCompressJpeg(context, uri)
+                    if (bytes.isEmpty()) return@async null
 
-            val photoName = "${barcode}_${i + 1}.jpg"
-            val path = "$folder/$photoName"
-            uploadBytes(path, bytes)
-            runCatching { api.publish(authHeader, path) }
-            val meta = runCatching { api.getResource(authHeader, path) }.getOrNull()
-            meta?.publicUrl?.let { publicLinks.add(it) }
+                    val photoName = "${barcode}_${i + 1}.jpg"
+                    val path = "$folder/$photoName"
+
+                    // 3.2) грузим на Диск
+                    uploadBytes(path, bytes)
+
+                    // 3.3) публикуем и достаём public_url (как раньше)
+                    runCatching {
+                        api.publish(authHeader, path)
+                        api.getResource(authHeader, path).publicUrl
+                    }.getOrNull()
+                }
+            }.mapNotNull { it.await() }  // оставляем только не-null ссылки
         }
+
         return YDUploadResult(folder, publicLinks)
     }
+
 
     // --------- «Возвраты» ---------
     private fun todayReturnsFolder(): String = "Возвраты/${today()}"
@@ -143,20 +195,25 @@ object YandexDiskClient {
         val json = Gson().toJson(metadata).toByteArray(Charsets.UTF_8)
         uploadBytes("$folder/metadata_return.json", json)
 
-        val publicLinks = mutableListOf<String>()
-        photos.forEachIndexed { i, uri ->
-            val bytes = withContext(Dispatchers.IO) {
-                context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: ByteArray(0)
-            }
-            if (bytes.isEmpty()) return@forEachIndexed
+        val publicLinks = coroutineScope {
+            photos.mapIndexed { i, uri ->
+                async(Dispatchers.IO) {
+                    val bytes = loadAndCompressJpeg(context, uri)
+                    if (bytes.isEmpty()) return@async null
 
-            val photoName = "${barcode}_${i + 1}.jpg"
-            val path = "$folder/$photoName"
-            uploadBytes(path, bytes)
-            runCatching { api.publish(authHeader, path) }
-            val meta = runCatching { api.getResource(authHeader, path) }.getOrNull()
-            meta?.publicUrl?.let { publicLinks.add(it) }
+                    val photoName = "${barcode}_${i + 1}.jpg"
+                    val path = "$folder/$photoName"
+
+                    uploadBytes(path, bytes)
+
+                    runCatching {
+                        api.publish(authHeader, path)
+                        api.getResource(authHeader, path).publicUrl
+                    }.getOrNull()
+                }
+            }.mapNotNull { it.await() }
         }
+
         return YDUploadResult(folder, publicLinks)
     }
 }

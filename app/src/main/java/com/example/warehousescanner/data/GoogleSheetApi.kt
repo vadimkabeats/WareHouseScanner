@@ -28,13 +28,13 @@ data class TrackLookupRequest(
 data class TrackLookupResponse(
     val ok: Boolean,
     val found: Boolean,
-    val track: String? = null,
-    val full: String? = null,
-    val multi: Boolean? = null,
-    val error: String? = null,
-    val qty_ship: Int?,      // "Количество" / "к отправке"
-    val qty_total: Int?,     // "Кол-во при приемке"
-    val strong_pack: Boolean?
+    val track: String?,
+    val full: String?,
+    val multi: Boolean?,
+    val qty_ship: Int?,
+    val qty_total: Int?,
+    val strong_pack: Boolean?,
+    val label_url: String?      // ← НОВОЕ
 )
 
 data class PutAwayRequest(

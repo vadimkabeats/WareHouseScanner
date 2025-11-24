@@ -72,8 +72,6 @@ fun HomeScreen(
 
         Button(onClick = onReceiveReturn, modifier = Modifier.fillMaxWidth()) { Text("Принять возврат") }
         Spacer(Modifier.height(12.dp))
-
-        Button(onClick = onReconcile, modifier = Modifier.fillMaxWidth()) { Text("Сверка") }
     }
 }
 
