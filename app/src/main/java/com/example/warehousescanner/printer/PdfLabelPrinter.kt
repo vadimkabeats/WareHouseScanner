@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothSocket
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import kotlinx.coroutines.Dispatchers
@@ -42,7 +43,7 @@ object PdfLabelPrinter {
         // 1. Резолвим ссылку (Яндекс.Диск → прямой href) и качаем PDF
         val pdfFile = downloadPdfToCache(context, pdfUrl)
 
-        // 2. Рендерим первую страницу в Bitmap
+        // 2. Рендерим первую страницу в Bitmap (уже с повышенным разрешением)
         val rawBitmap = renderFirstPageToBitmap(pdfFile)
 
         // 3. Масштабируем по ширине под принтер
@@ -162,17 +163,34 @@ object PdfLabelPrinter {
         }
 
         val page = renderer.openPage(0)
-        val bmp = Bitmap.createBitmap(
-            page.width,
-            page.height,
+
+        // Рендерим сразу с повышенным разрешением (примерно ×3 к базовому 72 dpi),
+        // чтобы штрихкод и мелкий текст были чётче.
+        val scale = 3f
+        val bmpWidth = (page.width * scale).toInt()
+        val bmpHeight = (page.height * scale).toInt()
+
+        val raw = Bitmap.createBitmap(
+            bmpWidth,
+            bmpHeight,
             Bitmap.Config.ARGB_8888
         )
-        page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
+        page.render(raw, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
         page.close()
         renderer.close()
         pfd.close()
-        return bmp
+
+        // 🔄 АВТОПОВОРОТ: если страница лежит «горизонтально» – крутим в портрет
+        return if (raw.width > raw.height) {
+            val matrix = Matrix().apply { postRotate(90f) }
+            val rotated = Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height, matrix, true)
+            raw.recycle()
+            rotated
+        } else {
+            raw
+        }
     }
+
 
     // ------------ Bitmap → 1-битные данные для TSPL BITMAP ------------
 
@@ -183,6 +201,9 @@ object PdfLabelPrinter {
         val out = ByteArray(bytesPerRow * h)
         var index = 0
 
+        // Порог можно будет подкрутить по ощущениям (150–170)
+        val threshold = 160
+
         for (y in 0 until h) {
             var bitPos = 7
             var current = 0
@@ -192,11 +213,16 @@ object PdfLabelPrinter {
                 val g = Color.green(color)
                 val b = Color.blue(color)
 
-                // яркость 0..255
-                val lum = (0.299 * r + 0.587 * g + 0.114 * b).toInt()
+                // базовая яркость 0..255
+                var lum = (0.299 * r + 0.587 * g + 0.114 * b).toInt()
 
-                // ИНВЕРСИЯ: тёмный пиксель -> 0 (чёрный на бумаге), светлый -> 1
-                val bit = if (lum < 180) 0 else 1
+                // лёгкая гамма-коррекция: делаем серые области чуточку светлее,
+                // чтобы края штрихкода и шрифтов не "распухали"
+                val norm = lum / 255.0
+                lum = (Math.pow(norm, 1.3) * 255.0).toInt().coerceIn(0, 255)
+
+                // тёмный пиксель -> 0, светлый -> 1 (оставляем текущую инверсию)
+                val bit = if (lum < threshold) 0 else 1
 
                 current = current or (bit shl bitPos)
 
@@ -234,7 +260,8 @@ object PdfLabelPrinter {
 
         writeln("SIZE ${labelWidthMm} mm,${labelHeightMm} mm")
         writeln("GAP 2 mm,0 mm")
-        writeln("DENSITY 8")
+        // Чуть снижаем плотность, чтобы линии штрихкода не слипались
+        writeln("DENSITY 6")
         writeln("DIRECTION 1")
         writeln("CLS")
 
