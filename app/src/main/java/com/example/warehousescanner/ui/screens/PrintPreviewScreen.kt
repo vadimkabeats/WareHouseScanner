@@ -23,7 +23,8 @@ import com.example.warehousescanner.printer.LabelPrinter
 import com.example.warehousescanner.printer.PdfLabelPrinter   // ← НОВЫЙ импорт
 import com.example.warehousescanner.viewmodel.PrintSessionViewModel
 import kotlinx.coroutines.launch
-
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.sp
 @Composable
 fun PrintPreviewScreen(
     code: String,
@@ -161,7 +162,13 @@ fun PrintPreviewScreen(
 
                 if (isMulti == true) {
                     Spacer(Modifier.height(4.dp))
-                    Text("Несколько товаров: Да", style = MaterialTheme.typography.caption)
+                    Text(
+                        text = "МУЛЬТИЗАКАЗ",
+                        style = MaterialTheme.typography.subtitle1.copy(
+                            color = Color.Red,
+                            fontSize = 18.sp
+                        )
+                    )
                 }
 
                 if (labelUrl.isNullOrBlank()) {
@@ -184,13 +191,28 @@ fun PrintPreviewScreen(
             Spacer(Modifier.height(12.dp))
             Surface(color = MaterialTheme.colors.secondary.copy(alpha = 0.15f)) {
                 Column(Modifier.fillMaxWidth().padding(12.dp)) {
-                    Text("Этот товар принадлежит коробке:", style = MaterialTheme.typography.subtitle2)
+                    Text(
+                        text = "ЭТОТ ТОВАР ПРИНАДЛЕЖИТ КОРОБКЕ:",
+                        style = MaterialTheme.typography.subtitle1.copy(
+                            color = Color.Red,
+                            fontSize = 18.sp
+                        )
+                    )
                     Spacer(Modifier.height(2.dp))
-                    Text(trackFull!!, style = MaterialTheme.typography.body1)
+                    Text(
+                        text = trackFull?.uppercase() ?: "",
+                        style = MaterialTheme.typography.subtitle1.copy(
+                            color = Color.Red,
+                            fontSize = 18.sp
+                        )
+                    )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "Положи его в эту коробку. Печатать этикетку не нужно.",
-                        style = MaterialTheme.typography.caption
+                        text = "ПОЛОЖИ ЕГО В ЭТУ КОРОБКУ. ПЕЧАТАТЬ ЭТИКЕТКУ НЕ НУЖНО.",
+                        style = MaterialTheme.typography.subtitle1.copy(
+                            color = Color.Red,
+                            fontSize = 16.sp
+                        )
                     )
                 }
             }

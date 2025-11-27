@@ -72,7 +72,6 @@ fun MainNavHost(
             )
         }
 
-        /* ------------ ГЛАВНОЕ МЕНЮ (только «сегодня») ------------ */
         composable("home") {
             val activity = LocalContext.current as ComponentActivity
             val userVm: UserViewModel = viewModel(activity)
@@ -87,38 +86,80 @@ fun MainNavHost(
             val statsNlo by statsVm.nlo.collectAsState()
             val statsNonNlo by statsVm.nonNlo.collectAsState()
 
-            // Изначальная загрузка
+            // персональная статистика
+            val statsIdentified by statsVm.identified.collectAsState()
+            val statsPutAway by statsVm.putAway.collectAsState()
+            val statsLost by statsVm.lost.collectAsState()
+
+            // СУММАРНАЯ статистика по складу
+            val totalIdentified by statsVm.totalIdentified.collectAsState()
+            val totalPutAway by statsVm.totalPutAway.collectAsState()
+
+            val lostVm: LostItemsViewModel = viewModel(activity)
+            val lostItems by lostVm.items.collectAsState()
+            val lostItemsLoading by lostVm.loading.collectAsState()
+            val lostItemsError by lostVm.error.collectAsState()
+            var lostDialogVisible by remember { mutableStateOf(false) }
+
+            if (lostDialogVisible) {
+                LostItemsDialog(
+                    items = lostItems,
+                    loading = lostItemsLoading,
+                    error = lostItemsError,
+                    onRetry = { lostVm.load(fullName) },
+                    onDismiss = { lostDialogVisible = false }
+                )
+            }
+            // первая загрузка
             LaunchedEffect(fullName) {
                 statsVm.loadFor(fullName)
             }
 
-            // Перезагружать при возврате на экран (RESUME)
+            // перезагрузка при возврате на экран
             val lifecycleOwner = LocalLifecycleOwner.current
             DisposableEffect(lifecycleOwner, fullName) {
                 val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
                     if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                        statsVm.loadFor(fullName) // всегда «сегодня»
+                        statsVm.loadFor(fullName)
                     }
                 }
                 lifecycleOwner.lifecycle.addObserver(obs)
                 onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
             }
-
             HomeScreen(
                 onAddItem = { nav.navigate("scan") },
                 onPutAway = { nav.navigate("put_scan_item") },
                 onPrintLabel = { nav.navigate("print_scan") },
                 onReceiveReturn = { nav.navigate("return_scan") },
                 onReconcile = { nav.navigate("reconcile_home") },
-                // статистика — только «за сегодня»
+
+                // 1-я карточка (НЛО)
                 statsNonNlo = statsNonNlo,
                 statsNlo = statsNlo,
                 statsLoading = statsLoading,
+
+                // 2-я карточка (по конкретному работнику — «ты»)
+                statsIdentified = statsIdentified,
+                statsPutAway = statsPutAway,
+                statsLost = statsLost,
+
+                // 3-я карточка — суммарная по складу
+                totalIdentified = totalIdentified,
+                totalPutAway = totalPutAway,
+
+                // клик по "НЕ дошло до полки"
+                onShowLostDetails = {
+                    lostDialogVisible = true
+                    lostVm.load(fullName)
+                },
+
                 // фонарик
                 torchOn = torchOn,
                 onToggleTorch = { settingsVm.setTorchEnabled(it) }
             )
         }
+
+
 
         /* ------------ ДОБАВИТЬ ТОВАР ------------ */
         composable("scan") {

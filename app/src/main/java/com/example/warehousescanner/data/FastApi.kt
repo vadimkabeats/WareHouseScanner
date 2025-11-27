@@ -40,4 +40,11 @@ interface FastApi {
         @Url url: String,
         @Body body: DailyStatsRequest
     ): DailyStatsResponse
+
+    @POST
+    suspend fun lostItems(
+        @Url url: String,
+        @Body body: LostItemsRequest
+    ): LostItemsResponse
+
 }
