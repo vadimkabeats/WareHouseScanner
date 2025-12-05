@@ -12,17 +12,26 @@ import androidx.compose.foundation.text.KeyboardOptions
 
 @Composable
 fun DefectScreen(
-    // ДОБАВИЛИ strongPackaging в коллбек
-    onDone: (hasDefect: Boolean, desc: String, quantity: Int, strongPackaging: Boolean) -> Unit
+    // теперь в коллбеке ещё и флаг "В утиль"
+    onDone: (
+        hasDefect: Boolean,
+        desc: String,
+        quantity: Int,
+        strongPackaging: Boolean,
+        toUtil: Boolean
+    ) -> Unit
 ) {
     var hasDefect by rememberSaveable { mutableStateOf(false) }
     var defectDesc by rememberSaveable { mutableStateOf("") }
 
     var qtyText by rememberSaveable { mutableStateOf("1") }
 
-    // НОВОЕ: обязательный выбор "усиленной упаковки"
-    // null — не выбран, true — да, false — нет
+    // усиленная упаковка — обязательный выбор
+    // null — пока не выбрано
     var strongPackaging by rememberSaveable { mutableStateOf<Boolean?>(null) }
+
+    // НОВОЕ: "В утиль" — по умолчанию НЕТ
+    var toUtil by rememberSaveable { mutableStateOf(false) }
 
     fun qtyInt(): Int = qtyText.toIntOrNull()?.coerceAtLeast(1) ?: 1
 
@@ -90,12 +99,37 @@ fun DefectScreen(
             }
         }
 
+        // ---------- НОВЫЙ БЛОК: В утиль ----------
+        Divider()
+        Text("В утиль", style = MaterialTheme.typography.subtitle1)
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(
+                    selected = !toUtil,
+                    onClick = { toUtil = false } // НЕТ
+                )
+                Text("Нет")
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(
+                    selected = toUtil,
+                    onClick = { toUtil = true } // ДА
+                )
+                Text("Да")
+            }
+        }
+
         Spacer(Modifier.weight(1f))
 
         Button(
             onClick = {
                 val pack = strongPackaging ?: return@Button
-                onDone(hasDefect, defectDesc, qtyInt(), pack)
+                onDone(hasDefect, defectDesc, qtyInt(), pack, toUtil)
             },
             enabled = canContinue,
             modifier = Modifier.fillMaxWidth()

@@ -12,7 +12,7 @@ class SessionViewModel : ViewModel() {
     private val _url = MutableStateFlow("")
     val url: StateFlow<String> = _url
 
-    private val _checkStatus = MutableStateFlow("") // "match" | "mismatch" | "nlo" и т.д.
+    private val _checkStatus = MutableStateFlow("")
     val checkStatus: StateFlow<String> = _checkStatus
 
     private val _checkComment = MutableStateFlow("")
@@ -40,6 +40,10 @@ class SessionViewModel : ViewModel() {
     private val _strongPackaging = MutableStateFlow(false)
     val strongPackaging: StateFlow<Boolean> = _strongPackaging
 
+    // НОВОЕ: флаг "В утиль"
+    private val _toUtil = MutableStateFlow(false)
+    val toUtil: StateFlow<Boolean> = _toUtil
+
     fun setBarcode(value: String) { _barcode.value = value }
     fun setUrl(value: String) { _url.value = value }
 
@@ -58,8 +62,10 @@ class SessionViewModel : ViewModel() {
 
     fun setQuantity(qty: Int) { _quantity.value = qty.coerceAtLeast(1) }
 
-    // НОВОЕ: сеттер для упаковки
     fun setStrongPackaging(value: Boolean) { _strongPackaging.value = value }
+
+    // НОВОЕ: сеттер "В утиль"
+    fun setToUtil(value: Boolean) { _toUtil.value = value }
 
     fun markScanStart() { _scanStartMs.value = System.currentTimeMillis() }
 }

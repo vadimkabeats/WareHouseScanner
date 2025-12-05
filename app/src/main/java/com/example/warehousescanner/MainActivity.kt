@@ -25,7 +25,7 @@ class MainActivity : ComponentActivity() {
         val fastApiUrl = "http://158.160.87.160:8000/api"
 
         // Apps Script exec — для Возвратов / Этикеток / Сверки / labelPrinted
-        val gasExecUrl = "https://script.google.com/macros/s/AKfycbyJHF4m-BTEkPQYlrjDfkqYXFUBEpraQff2TBRmwIyVsBOdkPU0D6RQnLE5V_UP_Mc/exec"
+        val gasExecUrl = "https://script.google.com/macros/s/AKfycbxobBQ-5mYGgNyy6_fC3qMT-MgC30l7WMnUb6amybCMLI0lQdqtCTrwpS4ngQEqpAM/exec"
 
         // key должен совпадать с API_KEY в Apps Script
         val apiKey = "SECRET_KEY"

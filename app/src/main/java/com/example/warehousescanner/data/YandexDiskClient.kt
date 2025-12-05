@@ -171,8 +171,6 @@ object YandexDiskClient {
         return YDUploadResult(folder, publicLinks)
     }
 
-
-    // --------- «Возвраты» ---------
     private fun todayReturnsFolder(): String = "Возвраты/${today()}"
 
     private suspend fun ensureReturnItemFolder(barcode: String): String {

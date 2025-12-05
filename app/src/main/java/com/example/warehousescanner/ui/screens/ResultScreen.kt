@@ -20,6 +20,7 @@ fun ResultScreen(
     defectResult: Pair<Boolean, String>,
     quantity: Int,
     strongPackaging: Boolean,
+    toUtil: Boolean,
     userFullName: String,
     scanStartMs: Long,
     oauthToken: String,
@@ -44,7 +45,10 @@ fun ResultScreen(
         else -> rawStatus
     }
 
+    // упаковка и "в утиль" в виде строк "да"/"нет" (или пусто для НЛО)
     val strongPackagingText = if (isNlo) "" else if (strongPackaging) "да" else "нет"
+    val toUtilText          = if (isNlo) "" else if (toUtil) "да" else "нет"
+
     val photosForUpload = if (isNlo) emptyList() else photos
     val qtyForSheet     = if (isNlo) 0 else quantity
     val defectsForSheet = if (isNlo) "" else if (defectResult.first) defectResult.second else ""
@@ -65,10 +69,12 @@ fun ResultScreen(
         if (!isNlo && rawComment.isNotBlank()) Text("Комментарий: $rawComment")
         Text("Количество: ${if (isNlo) 0 else qtyForSheet}")
         Text("Фото: ${photosForUpload.size} шт.")
+
         if (!isNlo) {
             Text("Дефект: ${if (defectResult.first) "Есть" else "Нет"}")
             if (defectsForSheet.isNotBlank()) Text("Описание дефекта: $defectsForSheet")
             Text("Усиленная упаковка: ${if (strongPackaging) "да" else "нет"}")
+            Text("В утиль: ${if (toUtil) "да" else "нет"}")
         }
 
         Spacer(Modifier.weight(1f))
@@ -106,6 +112,7 @@ fun ResultScreen(
                                     "comment" to rawComment,
                                     "quantity" to qtyForSheet,
                                     "strongPackaging" to strongPackagingText,
+                                    "toUtil" to toUtilText, // НОВОЕ в метаданных
                                     "photosCount" to photosForUpload.size,
                                     "defect" to defectResult.first,
                                     "defectDescription" to defectsForSheet,
@@ -135,7 +142,8 @@ fun ResultScreen(
                                 durationSec = durationSec,
                                 defects     = defectsForSheet,
                                 photos      = publicUrls,
-                                strongPackaging = strongPackagingText
+                                strongPackaging = strongPackagingText,
+                                toUtil      = toUtilText          // НОВОЕ поле
                             )
 
                             // 3) Замеряем время именно записи в таблицу
@@ -146,7 +154,7 @@ fun ResultScreen(
                             val writeSec = writeMs / 1000.0
                             val writeInfo = "Время записи в таблицу: %.2f с".format(writeSec)
 
-                            // 4) Формируем итоговое сообщение (одно, чтобы ничего не "перезатиралось")
+                            // 4) Сообщение
                             message = if (isNlo) {
                                 "Сохранено в таблицу (НЛО)\n$writeInfo"
                             } else {

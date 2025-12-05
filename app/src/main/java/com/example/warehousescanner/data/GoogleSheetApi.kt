@@ -16,7 +16,8 @@ data class AfterUploadRequest(
     val durationSec: Int,
     val defects: String,
     val photos: List<String>,
-    val strongPackaging: String
+    val strongPackaging: String,
+    val toUtil: String
 )
 
 data class TrackLookupRequest(
@@ -63,10 +64,18 @@ data class ReturnLookupRequest(
 data class ReturnLookupResponse(
     val ok: Boolean,
     val found: Boolean,
-    val barcode: String? = null,
+    val barcode: String? = null,          // первый товар (для совместимости)
     val reason: String? = null,
     val url: String? = null,
-    val error: String? = null
+    val error: String? = null,
+    val items: List<ReturnLookupItem>? = null // НОВОЕ — все товары по dispatch
+)
+
+data class ReturnLookupItem(
+    val barcode: String? = null,
+    val title: String? = null,
+    val url: String? = null,
+    val reason: String? = null
 )
 
 /** НОВОЕ: добавили decision */

@@ -18,6 +18,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.example.warehousescanner.data.GoogleSheetClient
+import com.example.warehousescanner.data.ReturnLookupItem
 import com.example.warehousescanner.ui.screens.*
 import com.example.warehousescanner.viewmodel.*
 import kotlinx.coroutines.launch
@@ -177,6 +178,7 @@ fun MainNavHost(
                 session.setStrongPackaging(false)
                 session.setBarcode(code)
                 session.markScanStart()
+                session.setToUtil(false)
                 nav.navigate("lookup")
             }
         }
@@ -312,13 +314,15 @@ fun MainNavHost(
         }
 
         composable("defect") {
-            DefectScreen { hasDefect, desc, qty, strongPackaging ->
+            DefectScreen { hasDefect, desc, qty, strongPackaging, toUtil ->
                 session.setDefect(hasDefect, desc)
                 session.setQuantity(qty)
                 session.setStrongPackaging(strongPackaging)
+                session.setToUtil(toUtil)           // ← сохраняем флаг "В утиль"
                 nav.navigate("result")
             }
         }
+
 
         composable("result") {
             val barcode by session.barcode.collectAsState()
@@ -332,6 +336,7 @@ fun MainNavHost(
             val quantity by session.quantity.collectAsState()
             val scanStartMs by session.scanStartMs.collectAsState()
             val strongPackaging by session.strongPackaging.collectAsState()
+            val toUtil by session.toUtil.collectAsState()
 
             fun goHomeSafe() {
                 val popped = nav.popBackStack("home", false)
@@ -353,6 +358,7 @@ fun MainNavHost(
                 defectResult = hasDefect to defectDesc,
                 quantity = quantity,
                 strongPackaging = strongPackaging,
+                toUtil = toUtil,
                 userFullName = fullName,
                 scanStartMs = scanStartMs,
                 oauthToken = oauthToken,
@@ -491,7 +497,7 @@ fun MainNavHost(
             }
         }
 
-        // 1a) Резолвим barcode по dispatchNumber
+        // 1a) Резолвим ВСЕ товары по dispatchNumber
         composable(
             route = "return_resolve?dispatch={dispatch}",
             arguments = listOf(navArgument("dispatch"){ defaultValue = "" })
@@ -499,22 +505,46 @@ fun MainNavHost(
             val returnVm: ReturnViewModel = viewModel(activity)
             val dispatch = backStackEntry.arguments?.getString("dispatch").orEmpty()
 
-            var state by remember { mutableStateOf("loading") }
+            val items by returnVm.items.collectAsState()
+
+            var state by remember { mutableStateOf("loading") } // loading / single / multi / error
             var err by remember { mutableStateOf<String?>(null) }
 
             LaunchedEffect(dispatch) {
                 state = "loading"
                 err = null
+                returnVm.reset()
                 runCatching { GoogleSheetClient.returnLookup(dispatch) }
                     .onSuccess { resp ->
-                        if (resp.ok && resp.found && !resp.barcode.isNullOrBlank()) {
-                            returnVm.setDispatchNumber(dispatch)
-                            returnVm.setPrintBarcode(resp.barcode!!)
-                            returnVm.setReturnReason(resp.reason.orEmpty())
-                            returnVm.setReturnUrl(resp.url.orEmpty())
-                            state = "ok"
+                        if (resp.ok && resp.found) {
+                            val list = when {
+                                !resp.items.isNullOrEmpty() -> resp.items
+                                !resp.barcode.isNullOrBlank() -> listOf(
+                                    ReturnLookupItem(
+                                        barcode = resp.barcode,
+                                        title = null,
+                                        url = resp.url,
+                                        reason = resp.reason
+                                    )
+                                )
+                                else -> emptyList()
+                            }
+
+                            if (list.isEmpty()) {
+                                err = "Не найдено в листе «Возвраты»"
+                                state = "error"
+                            } else {
+                                returnVm.setDispatchNumber(dispatch)
+                                returnVm.setItems(list)
+                                if (list.size == 1) {
+                                    returnVm.selectItem(0)
+                                    state = "single"
+                                } else {
+                                    state = "multi"
+                                }
+                            }
                         } else {
-                            err = "Не найдено в листе «Возвраты»"
+                            err = resp.error ?: "Не найдено в листе «Возвраты»"
                             state = "error"
                         }
                     }
@@ -528,14 +558,34 @@ fun MainNavHost(
                 "loading" -> Box(Modifier.fillMaxSize()) {
                     CircularProgressIndicator(Modifier.align(Alignment.Center))
                 }
-                "ok" -> LaunchedEffect(Unit) {
-                    nav.navigate("return_condition") {
-                        popUpTo("return_resolve?dispatch={dispatch}") { inclusive = true }
+
+                "multi" -> {
+                    ReturnPickItemScreen(
+                        dispatchNumber = dispatch,
+                        items = items,
+                        onSelectItem = { idx ->
+                            returnVm.selectItem(idx)
+                            nav.navigate("return_condition") {
+                                popUpTo("return_resolve?dispatch={dispatch}") { inclusive = true }
+                            }
+                        },
+                        onBack = { nav.popBackStack() }
+                    )
+                }
+
+                "single" -> {
+                    LaunchedEffect(Unit) {
+                        nav.navigate("return_condition") {
+                            popUpTo("return_resolve?dispatch={dispatch}") { inclusive = true }
+                        }
                     }
                 }
+
                 else -> {
                     Column(
-                        Modifier.fillMaxSize().padding(24.dp),
+                        Modifier
+                            .fillMaxSize()
+                            .padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
@@ -546,6 +596,7 @@ fun MainNavHost(
                 }
             }
         }
+
 
         // 2) Состояние, фото + ВЫБОР ДЕЙСТВИЯ (НОВОЕ)
         composable("return_condition") {

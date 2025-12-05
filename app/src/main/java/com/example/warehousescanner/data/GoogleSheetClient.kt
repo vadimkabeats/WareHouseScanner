@@ -39,7 +39,7 @@ object GoogleSheetClient {
     private lateinit var gasApi: GoogleSheetApi
 
     private var fastApiUrl: String = "http://158.160.87.160:8000/api"
-    private var gasUrl: String = "https://script.google.com/macros/s/AKfycbyJHF4m-BTEkPQYlrjDfkqYXFUBEpraQff2TBRmwIyVsBOdkPU0D6RQnLE5V_UP_Mc/exec"         // ТВОЙ Apps Script exec URL
+    private var gasUrl: String = "https://script.google.com/macros/s/AKfycbxobBQ-5mYGgNyy6_fC3qMT-MgC30l7WMnUb6amybCMLI0lQdqtCTrwpS4ngQEqpAM/exec"         // ТВОЙ Apps Script exec URL
     private var apiKey: String = "SECRET_KEY"         // ключ для Apps Script (если используется)
 
     fun init(fastApiUrl: String, gasExecUrl: String, key: String) {
