@@ -12,7 +12,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 
 @Composable
 fun DefectScreen(
-    // теперь в коллбеке ещё и флаг "В утиль"
     onDone: (
         hasDefect: Boolean,
         desc: String,
@@ -23,19 +22,10 @@ fun DefectScreen(
 ) {
     var hasDefect by rememberSaveable { mutableStateOf(false) }
     var defectDesc by rememberSaveable { mutableStateOf("") }
-
     var qtyText by rememberSaveable { mutableStateOf("1") }
-
-    // усиленная упаковка — обязательный выбор
-    // null — пока не выбрано
     var strongPackaging by rememberSaveable { mutableStateOf<Boolean?>(null) }
-
-    // НОВОЕ: "В утиль" — по умолчанию НЕТ
     var toUtil by rememberSaveable { mutableStateOf(false) }
-
     fun qtyInt(): Int = qtyText.toIntOrNull()?.coerceAtLeast(1) ?: 1
-
-    // Кнопка "Далее" активна только если выбрана упаковка
     val canContinue = qtyText.isNotBlank() && strongPackaging != null
 
     Column(
@@ -51,7 +41,6 @@ fun DefectScreen(
             Spacer(Modifier.width(8.dp))
             Text("Есть дефект")
         }
-
         if (hasDefect) {
             OutlinedTextField(
                 value = defectDesc,
@@ -74,7 +63,6 @@ fun DefectScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
-        // ---------- НОВЫЙ БЛОК: усиленная упаковка ----------
         Divider()
         Text("Нужна усиленная упаковка?", style = MaterialTheme.typography.subtitle1)
 
@@ -99,7 +87,6 @@ fun DefectScreen(
             }
         }
 
-        // ---------- НОВЫЙ БЛОК: В утиль ----------
         Divider()
         Text("В утиль", style = MaterialTheme.typography.subtitle1)
 

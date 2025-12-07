@@ -39,17 +39,11 @@ fun PhotoScreen(onNext: (List<Uri>) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     val photos = remember { mutableStateListOf<Uri>() }
-
-
     val sheetState = rememberModalBottomSheetState(
         initialValue = ModalBottomSheetValue.Hidden,
         skipHalfExpanded = true
     )
-
-
     var pendingCameraUriStr by rememberSaveable { mutableStateOf<String?>(null) }
-
-
     val cameraLauncher = rememberLauncherForActivityResult(StartActivityForResult()) { res: ActivityResult ->
         val u = pendingCameraUriStr?.let(Uri::parse)
         if (res.resultCode == Activity.RESULT_OK && u != null) {
@@ -68,13 +62,11 @@ fun PhotoScreen(onNext: (List<Uri>) -> Unit) {
     fun launchCamera(ctx: Context) {
         val uri = createTempImageUri(ctx)
         pendingCameraUriStr = uri.toString()
-
         val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
             putExtra(MediaStore.EXTRA_OUTPUT, uri)
             addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-
 
         val resInfo = ctx.packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
         for (resolveInfo in resInfo) {
@@ -87,7 +79,6 @@ fun PhotoScreen(onNext: (List<Uri>) -> Unit) {
 
         cameraLauncher.launch(intent)
     }
-
 
     val pickMultiple = rememberLauncherForActivityResult(GetMultipleContents()) { uris ->
         if (!uris.isNullOrEmpty()) {

@@ -9,16 +9,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 class LostItemsViewModel : ViewModel() {
-
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading
-
     private val _items = MutableStateFlow<List<LostItem>>(emptyList())
     val items: StateFlow<List<LostItem>> = _items
-
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
-
     fun load(userFio: String?) {
         viewModelScope.launch {
             if (userFio.isNullOrBlank()) {
@@ -27,7 +23,6 @@ class LostItemsViewModel : ViewModel() {
                 _loading.value = false
                 return@launch
             }
-
             _loading.value = true
             _error.value = null
             try {

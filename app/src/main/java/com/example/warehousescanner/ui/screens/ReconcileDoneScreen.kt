@@ -14,28 +14,22 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.warehousescanner.data.ReconcileItem
 
-// ui/screens/ReconcileDoneScreen.kt
 @Composable
 fun ReconcileDoneScreen(
-    passed: List<ReconcileItem>,     // ← отсканировано И с галочкой
-    notPassed: List<ReconcileItem>,  // ← отсканировано И без галочки
+    passed: List<ReconcileItem>,
+    notPassed: List<ReconcileItem>,
     onBackHome: () -> Unit
 ) {
     var tab by remember { mutableStateOf(0) }
     val expanded = remember { mutableStateMapOf<String, Boolean>() }
-
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Text("Результаты сверки", style = MaterialTheme.typography.h6)
         Spacer(Modifier.height(8.dp))
-
         TabRow(selectedTabIndex = tab) {
             Tab(selected = tab == 0, onClick = { tab = 0 }) { Text("Передано (${passed.size})") }
             Tab(selected = tab == 1, onClick = { tab = 1 }) { Text("Не передано (${notPassed.size})") }
         }
-
         Spacer(Modifier.height(8.dp))
-
-        // 2-колоночная шапка: Трек-номер | Название
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
             Text("Трек-номер", modifier = Modifier.weight(1.6f))
             Text("Название",   modifier = Modifier.weight(2.4f))
@@ -61,7 +55,6 @@ fun ReconcileDoneScreen(
         }
     }
 }
-
 
 @Composable
 private fun ReconcileRow2Col(
@@ -92,7 +85,7 @@ private fun ReconcileRow2Col(
             Column(Modifier.fillMaxWidth().padding(top = 6.dp, start = 4.dp, end = 4.dp)) {
                 DetailRow(label = "ШК товара",  value = item.barcode.ifBlank { "—" })
                 DetailRow(label = "Служба",     value = item.carrier.ifBlank { "—" })
-                LinkRow(url = item.url)  // ← НОВОЕ
+                LinkRow(url = item.url)
             }
         }
     }

@@ -22,6 +22,8 @@ import com.example.warehousescanner.data.ReturnLookupItem
 import com.example.warehousescanner.ui.screens.*
 import com.example.warehousescanner.viewmodel.*
 import kotlinx.coroutines.launch
+import com.example.warehousescanner.ui.returns.ReturnProcessScreen
+
 
 @SuppressLint("ContextCastToActivity")
 @Composable
@@ -131,7 +133,8 @@ fun MainNavHost(
                 onAddItem = { nav.navigate("scan") },
                 onPutAway = { nav.navigate("put_scan_item") },
                 onPrintLabel = { nav.navigate("print_scan") },
-                onReceiveReturn = { nav.navigate("return_scan") },
+                onPrintBarcode = { nav.navigate("print_barcode") }, // ← НОВЫЙ КОЛЛБЕК
+                onReceiveReturn = { nav.navigate("returns_home") },
                 onReconcile = { nav.navigate("reconcile_home") },
 
                 // 1-я карточка (НЛО)
@@ -158,6 +161,52 @@ fun MainNavHost(
                 torchOn = torchOn,
                 onToggleTorch = { settingsVm.setTorchEnabled(it) }
             )
+        }
+        /* ------------ ВОЗВРАТЫ: домашний экран ------------ */
+        composable("returns_home") {
+            ReturnsHomeScreen(
+                onIntakeClick = { nav.navigate("return_intake_tracks") },
+                onProcessClick = { nav.navigate("return_process") }    // ← вот сюда уходим
+            )
+        }
+
+
+        /* ------------ ПРИЕМКА ВОЗВРАТОВ: ввод трек-номеров ------------ */
+        composable("return_intake_tracks") {
+            ReturnIntakeTracksScreen(
+                onNext = { trackNumber ->
+                    val encoded = Uri.encode(trackNumber)
+                    nav.navigate("return_intake_photos/$encoded")
+                },
+                onBack = { nav.popBackStack() }
+            )
+        }
+
+        /* ------------ ПРИЕМКА ВОЗВРАТОВ: фото + отправка ------------ */
+        composable(
+            route = "return_intake_photos/{trackNumber}",
+            arguments = listOf(navArgument("trackNumber") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val trackNumber = backStackEntry.arguments?.getString("trackNumber") ?: ""
+
+            ReturnIntakePhotosScreen(
+                trackNumber = trackNumber,
+                oauthToken = oauthToken,
+                onFinished = {
+                    val popped = nav.popBackStack("home", false)
+                    if (!popped) {
+                        nav.navigate("home") {
+                            popUpTo(nav.graph.startDestinationId) { inclusive = false }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                }
+            )
+        }
+
+        composable("return_process") {
+            ReturnProcessScreen(nav)
         }
 
 
@@ -282,6 +331,13 @@ fun MainNavHost(
                     }
                 }
             }
+        }
+
+        // НОВЫЙ РОУТ ПЕЧАТИ ШК
+        composable("print_barcode") {
+            PrintBarcodeScreen(
+                onBack = { nav.popBackStack() }    // ← ТУТ ДОЛЖЕН БЫТЬ nav, а не navController
+            )
         }
 
         composable(
@@ -647,7 +703,6 @@ fun MainNavHost(
             }
         }
 
-        // 2b) Отправка в Диск + запись в таблицу
         // 2b) Отправка в Диск + запись в таблицу
         composable("return_result") {
             val returnVm: ReturnViewModel = viewModel(activity)

@@ -30,7 +30,6 @@ object LabelPrinter {
     private var connectedAddr: String? = null
     private val printMutex = Mutex()
 
-
     private fun hasBtConnect(ctx: Context): Boolean =
         if (Build.VERSION.SDK_INT >= 31) {
             ContextCompat.checkSelfPermission(
@@ -46,7 +45,6 @@ object LabelPrinter {
                 Manifest.permission.BLUETOOTH_SCAN
             ) == PackageManager.PERMISSION_GRANTED
         } else true
-
 
     @SuppressLint("MissingPermission")
     fun saveLastPrinter(ctx: Context, device: BluetoothDevice) {
@@ -73,7 +71,6 @@ object LabelPrinter {
             n ?: try { d.address } catch (_: SecurityException) { "ZZZ" }
         }
     }
-
 
     @SuppressLint("MissingPermission")
     private suspend fun ensureConnected(ctx: Context, device: BluetoothDevice): BluetoothSocket =
@@ -111,7 +108,6 @@ object LabelPrinter {
         socket = null
         connectedAddr = null
     }
-
 
     private suspend fun isPrinterReady(sock: BluetoothSocket): Boolean =
         withContext(Dispatchers.IO) {
@@ -173,7 +169,6 @@ object LabelPrinter {
             val wide   = when { len <= 18 -> 6; len <= 24 -> 5; else -> 3 }
             val baseBcHeight = when { len <= 18 -> 190; len <= 24 -> 180; else -> 165 }
 
-            // Отступ слева — используем общую константу
             val left = LABEL_LEFT_MARGIN
             val top  = 12
 
@@ -207,10 +202,8 @@ object LabelPrinter {
                     if (lines.size >= 3)
                         append("""TEXT $left,${baseTextY + layout.lineStep*2},"${layout.font}",0,${layout.sx},${layout.sy},"${lines[2]}"""" + "\r\n")
                 }
-
                 append("PRINT 1,1\r\n")
             }.toByteArray(Charsets.US_ASCII)
-
             try { sendRaw(sock.outputStream, tspl) }
             catch (e: Exception) { closeSilently(); throw e }
         }
@@ -222,36 +215,26 @@ object LabelPrinter {
         val bcHeight: Int
     )
 
-    /**
-     * Подбираем макет подписи и высоту ШК под длину текста.
-     * - Пробуем font "3", 2 строки: ≈28/26 символов
-     * - Если не влезает — font "2", 2 строки: ≈34/32
-     * - Если и это длинно — font "2", 3 строки: ≈24/24/24 + уменьшаем высоту ШК
-     */
     private fun pickCaptionLayout(caption: String, baseBcHeight: Int): CaptionLayout {
         val len = caption.replace('_', ' ').length
 
-        // 1) font=3, 2 строки
         if (len <= 28 + 26) {
             return CaptionLayout(font = "3", sx = 1, sy = 1,
                 lineStep = 22, maxPerLine = intArrayOf(28, 26),
                 bcHeight = baseBcHeight)
         }
 
-        // 2) font=2, 2 строки (мельче)
         if (len <= 34 + 32) {
             return CaptionLayout(font = "2", sx = 1, sy = 1,
                 lineStep = 20, maxPerLine = intArrayOf(34, 32),
                 bcHeight = baseBcHeight)
         }
 
-        // 3) font=2, 3 строки + чуть ниже высота ШК
         return CaptionLayout(font = "2", sx = 1, sy = 1,
             lineStep = 18, maxPerLine = intArrayOf(24, 24, 24),
             bcHeight = (baseBcHeight - 20).coerceAtLeast(150))
     }
 
-    // NEW: компактная печать для возвратов
     suspend fun printTsplFixedSmallCompact(
         context: Context,
         device: BluetoothDevice,
@@ -263,19 +246,17 @@ object LabelPrinter {
             if (!isPrinterReady(sock)) {
                 throw IllegalStateException("Принтер не готов (бумага/крышка/пауза)")
             }
-
             val len = barcodeText.length
 
             val narrow = when { len <= 18 -> 2; len <= 24 -> 2; else -> 1 }
             val wide   = when { len <= 18 -> 4; len <= 24 -> 4; else -> 3 }
             val baseBcHeight = when { len <= 18 -> 170; len <= 24 -> 160; else -> 150 }
 
-            // Используем тот же отступ слева, что и в обычной печати
             val left = LABEL_LEFT_MARGIN
             val top  = 12
 
             val layout = if (!captionText.isNullOrBlank())
-                pickCaptionLayout(captionText!!, baseBcHeight - 10) // подпись → ещё -10 к высоте
+                pickCaptionLayout(captionText!!, baseBcHeight - 10)
             else
                 CaptionLayout(font = "3", sx = 1, sy = 1, lineStep = 22, maxPerLine = intArrayOf(), bcHeight = baseBcHeight)
 
@@ -294,8 +275,6 @@ object LabelPrinter {
                 append("DIRECTION 1\r\n")
                 append("REFERENCE 0,0\r\n")
                 append("CLS\r\n")
-
-                // Code128 без подписи принтера
                 append("""BARCODE $left,$top,"128",$bcHeight,0,0,$narrow,$wide,"$barcodeText"""" + "\r\n")
 
                 if (lines.isNotEmpty()) {

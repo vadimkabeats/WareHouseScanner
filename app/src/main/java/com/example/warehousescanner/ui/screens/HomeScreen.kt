@@ -18,27 +18,24 @@ import androidx.compose.foundation.LocalOverscrollConfiguration
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.window.Dialog
+
 @Composable
 fun HomeScreen(
     onAddItem: () -> Unit,
     onPutAway: () -> Unit,
     onPrintLabel: () -> Unit,
+    onPrintBarcode: () -> Unit,
     onReceiveReturn: () -> Unit,
     onReconcile: () -> Unit,
-    // Статистика НЛО — только за сегодня (личная)
     statsNonNlo: Int?,
     statsNlo: Int?,
     statsLoading: Boolean,
-    // Личная статистика потока
     statsIdentified: Int?,
     statsPutAway: Int?,
     statsLost: Int?,
-    // Суммарная статистика по складу
     totalIdentified: Int?,
     totalPutAway: Int?,
-    // Клик по "НЕ дошло до полки"
     onShowLostDetails: () -> Unit,
-    // Фонарик
     torchOn: Boolean,
     onToggleTorch: (Boolean) -> Unit
 ) {
@@ -48,7 +45,6 @@ fun HomeScreen(
             .padding(24.dp),
         verticalArrangement = Arrangement.Top
     ) {
-        // 1) Переключатель фонарика — теперь сверху
         Card(Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier
@@ -71,7 +67,6 @@ fun HomeScreen(
 
         Spacer(Modifier.height(16.dp))
 
-        // 2) Карточка статистики НЛО за сегодня (по сотруднику)
         Row(Modifier.fillMaxWidth()) {
             DailyStatsCard(
                 title = "Проверено за сегодня (ты)",
@@ -84,7 +79,6 @@ fun HomeScreen(
 
         Spacer(Modifier.height(16.dp))
 
-        // 3) Вторая карточка: статистика конкретного сотрудника
         FlowStatsCard(
             identified = statsIdentified,
             putAway = statsPutAway,
@@ -95,7 +89,6 @@ fun HomeScreen(
 
         Spacer(Modifier.height(8.dp))
 
-        // 4) СУММАРНАЯ статистика по складу
         TotalFlowStatsCard(
             totalIdentified = totalIdentified,
             totalPutAway = totalPutAway,
@@ -119,10 +112,20 @@ fun HomeScreen(
         }
         Spacer(Modifier.height(12.dp))
 
-        Button(onClick = onReceiveReturn, modifier = Modifier.fillMaxWidth()) {
-            Text("Принять возврат")
+        Button(
+            onClick = onReceiveReturn,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Возвраты")
         }
         Spacer(Modifier.height(12.dp))
+
+        Button(
+            onClick = onPrintBarcode,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Печать ШК")
+        }
 
     }
 }
@@ -148,9 +151,6 @@ private fun DailyStatsCard(
     }
 }
 
-/**
- * Личная статистика конкретного сотрудника.
- */
 @Composable
 private fun FlowStatsCard(
     identified: Int?,
@@ -180,10 +180,9 @@ private fun FlowStatsCard(
             ) {
                 Text(
                     text = "Из них НЕ дошло до полки: ${lost?.toString() ?: "—"}",
-                    color = MaterialTheme.colors.error      // красный текст
+                    color = MaterialTheme.colors.error
                 )
 
-                // Кнопка "Посмотреть" вместо клика по цифре
                 if ((lost ?: 0) > 0) {
                     TextButton(onClick = onShowLostDetails) {
                         Text("Посмотреть")
@@ -206,7 +205,6 @@ fun LostItemsDialog(
 ) {
     val scrollState = rememberScrollState()
     val config = LocalConfiguration.current
-    // Диалог максимум на ~80% высоты экрана
     val maxHeight = (config.screenHeightDp.dp * 0.8f)
 
     Dialog(onDismissRequest = onDismiss) {
@@ -222,7 +220,6 @@ fun LostItemsDialog(
                     .fillMaxWidth()
                     .padding(16.dp)
             ) {
-                // Заголовок
                 Text(
                     text = "Товары, не дошедшие до полки",
                     style = MaterialTheme.typography.h6
@@ -230,12 +227,11 @@ fun LostItemsDialog(
 
                 Spacer(Modifier.height(8.dp))
 
-                // Основная область контента — фиксированной высоты, со скроллом
                 CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(1f, fill = true)   // забираем всё свободное место, но не растягиваем диалог выше maxHeight
+                            .weight(1f, fill = true)
                     ) {
                         when {
                             loading -> {
@@ -288,7 +284,6 @@ fun LostItemsDialog(
 
                 Spacer(Modifier.height(12.dp))
 
-                // Кнопки внизу
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
@@ -315,10 +310,8 @@ private fun LostItemRow(item: LostItem) {
     val photosCount = photos.size
 
     Column {
-        // ШК
         Text("ШК: ${item.barcode}")
 
-        // Время сканирования
         item.createdAt?.takeIf { it.isNotBlank() }?.let {
             Text(
                 "Время сканирования: $it",
@@ -326,7 +319,6 @@ private fun LostItemRow(item: LostItem) {
             )
         }
 
-        // Кликабельная ссылка
         item.link?.takeIf { it.isNotBlank() }?.let { link ->
             Spacer(Modifier.height(4.dp))
             Row(
@@ -349,7 +341,6 @@ private fun LostItemRow(item: LostItem) {
                 }
             }
 
-            // Короткая форма ссылки (чтобы было видно, что за сайт)
             Text(
                 text = link,
                 maxLines = 1,
@@ -358,7 +349,6 @@ private fun LostItemRow(item: LostItem) {
             )
         }
 
-        // Фото
         if (photosCount > 0) {
             Spacer(Modifier.height(4.dp))
 
@@ -369,7 +359,6 @@ private fun LostItemRow(item: LostItem) {
 
             Spacer(Modifier.height(2.dp))
 
-            // Кнопки "Фото 1", "Фото 2", "Фото 3" (максимум 3 для компактности)
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -390,7 +379,6 @@ private fun LostItemRow(item: LostItem) {
                 }
             }
 
-            // Если фоток больше 3 — показываем, что есть ещё
             if (photosCount > 3) {
                 Text(
                     text = "+ ещё ${photosCount - 3}",
@@ -401,10 +389,6 @@ private fun LostItemRow(item: LostItem) {
     }
 }
 
-
-/**
- * Суммарная статистика по всем сотрудникам за сегодняшний день.
- */
 @Composable
 private fun TotalFlowStatsCard(
     totalIdentified: Int?,

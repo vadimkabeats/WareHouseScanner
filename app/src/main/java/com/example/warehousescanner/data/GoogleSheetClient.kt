@@ -27,24 +27,17 @@ private class RetryOnTimeoutInterceptor(private val retries: Int = 1) : Intercep
     }
 }
 
-/**
- * Универсальный клиент:
- * - fastApiUrl → FastAPI (/api) для: auth, lookup, scanExists, afterUpload, putAway, dailyStats
- * - gasUrl     → Apps Script (exec) для: lookupTrack, returnLookup, saveReturn, reconcileInit, labelPrinted
- *
- * Сигнатуры публичных методов НЕ меняем — экраны трогать не надо.
- */
 object GoogleSheetClient {
     private lateinit var fastApi: FastApi
     private lateinit var gasApi: GoogleSheetApi
 
     private var fastApiUrl: String = "http://158.160.87.160:8000/api"
-    private var gasUrl: String = "https://script.google.com/macros/s/AKfycbxobBQ-5mYGgNyy6_fC3qMT-MgC30l7WMnUb6amybCMLI0lQdqtCTrwpS4ngQEqpAM/exec"         // ТВОЙ Apps Script exec URL
-    private var apiKey: String = "SECRET_KEY"         // ключ для Apps Script (если используется)
+    private var gasUrl: String = "https://script.google.com/macros/s/AKfycbx3clnFV8gP8BKS0pkv5ysMfEe80YKfen2McX74HBKHIGQI2ECnyBsNZF8zRNqenPA/exec"         // ТВОЙ Apps Script exec URL
+    private var apiKey: String = "SECRET_KEY"
 
     fun init(fastApiUrl: String, gasExecUrl: String, key: String) {
-        this.fastApiUrl = fastApiUrl.trimEnd('/')    // .../api
-        this.gasUrl     = gasExecUrl                 // .../exec
+        this.fastApiUrl = fastApiUrl.trimEnd('/')
+        this.gasUrl     = gasExecUrl
         this.apiKey     = key
 
         val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY }
@@ -60,9 +53,8 @@ object GoogleSheetClient {
 
         val gson = GsonBuilder().setLenient().create()
 
-        // Retrofit требует валидный baseUrl, даже если используем @Url — ставим заглушку
         fun buildRetrofit(): Retrofit = Retrofit.Builder()
-            .baseUrl("https://localhost/") // не используется благодаря @Url
+            .baseUrl("https://localhost/")
             .client(ok)
             .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
@@ -70,8 +62,6 @@ object GoogleSheetClient {
         fastApi = buildRetrofit().create(FastApi::class.java)
         gasApi  = buildRetrofit().create(GoogleSheetApi::class.java)
     }
-
-    /* ---------------- FastAPI (PostgreSQL) ---------------- */
 
     suspend fun lookup(barcode: String) =
         fastApi.lookup(fastApiUrl, barcode)
@@ -95,6 +85,7 @@ object GoogleSheetClient {
         val resp = fastApi.scanExists(fastApiUrl, ScanExistsRequest(barcode = barcode))
         return resp.ok && (resp.exists == true)
     }
+
     suspend fun lostItems(user: String): LostItemsResponse =
         fastApi.lostItems(
             fastApiUrl,
@@ -104,9 +95,7 @@ object GoogleSheetClient {
     suspend fun dailyStats(dateIso: String?, user: String?): DailyStatsResponse =
         fastApi.dailyStats(fastApiUrl, DailyStatsRequest(date = dateIso, user = user))
 
-    /* ---------------- Apps Script (Возвраты/Этикетки) ---------------- */
-
-    suspend fun lookupTrack(barcode: String, gid: Long = 522894316L) =
+    suspend fun lookupTrack(barcode: String, gid: Long = 400055422L) =
         gasApi.lookupTrack(gasUrl, apiKey, TrackLookupRequest(barcode = barcode, gid = gid))
 
     suspend fun returnLookup(dispatchNumber: String): ReturnLookupResponse =
@@ -131,6 +120,17 @@ object GoogleSheetClient {
         return gasApi.saveReturn(gasUrl, apiKey, body)
     }
 
+    suspend fun returnIntake(
+        trackNumber: String,
+        photoLinks: List<String>
+    ): SimpleOkResponse {
+        val body = ReturnIntakeRequest(
+            trackNumber = trackNumber,
+            photos = photoLinks
+        )
+        return gasApi.returnIntake(gasUrl, apiKey, body)
+    }
+
     suspend fun reconcileInit(): List<ReconcileItem> {
         val resp = gasApi.reconcileInit(gasUrl, apiKey, ReconcileInitRequest())
         if (!resp.ok) error(resp.error ?: "reconcileInit failed")
@@ -150,5 +150,19 @@ object GoogleSheetClient {
                 track_short = trackShort,
                 printed_at_ms = printedAtMs ?: System.currentTimeMillis()
             )
+        )
+
+    suspend fun returnProcessLookup(trackNumber: String): ReturnProcessLookupResponse =
+        gasApi.returnProcessLookup(
+            gasUrl,
+            apiKey,
+            ReturnProcessLookupRequest(trackNumber = trackNumber)
+        )
+
+    suspend fun returnProcessDone(trackNumber: String): ReturnProcessDoneResponse =
+        gasApi.returnProcessDone(
+            gasUrl,
+            apiKey,
+            ReturnProcessDoneRequest(trackNumber = trackNumber)
         )
 }

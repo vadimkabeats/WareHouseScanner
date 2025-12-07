@@ -9,18 +9,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 class ReconcileViewModel : ViewModel() {
-
     private val _expected = MutableStateFlow<List<ReconcileItem>>(emptyList())
     val expected: StateFlow<List<ReconcileItem>> = _expected
-
     private val _itemsByTrack = MutableStateFlow<Map<String, ReconcileItem>>(emptyMap())
-
-    private val _scanned = MutableStateFlow<Set<String>>(emptySet()) // нормализованные треки
+    private val _scanned = MutableStateFlow<Set<String>>(emptySet())
     val scanned: StateFlow<Set<String>> = _scanned
-
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading
-
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
 
@@ -60,13 +55,11 @@ class ReconcileViewModel : ViewModel() {
         _loading.value = false
     }
 
-    /** ОТСКАНИРОВАНО + С ГАЛОЧКОЙ */
     fun passedScanned(): List<ReconcileItem> {
         val map = _itemsByTrack.value
         return _scanned.value.mapNotNull { t -> map[t] }.filter { it.processed }
     }
 
-    /** ОТСКАНИРОВАНО + БЕЗ ГАЛОЧКИ */
     fun notPassedScanned(): List<ReconcileItem> {
         val map = _itemsByTrack.value
         return _scanned.value.mapNotNull { t -> map[t] }.filter { !it.processed }

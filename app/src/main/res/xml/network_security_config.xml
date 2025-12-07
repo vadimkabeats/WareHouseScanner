@@ -1,11 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- Разрешаем http к нашему компу -->
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="TODO">158.160.87.160</domain>
     </domain-config>
 
-    <!-- на всякий случай позволим локалхост -->
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="TODO">localhost</domain>
     </domain-config>

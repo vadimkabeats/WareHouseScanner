@@ -18,9 +18,9 @@ fun ReturnConditionScreen(
     hasDefectInit: Boolean,
     defectDescInit: String,
     photosCount: Int,
-    decisionInit: String,                           // НОВОЕ
+    decisionInit: String,
     onChangeState: (Boolean, String) -> Unit,
-    onSelectDecision: (String) -> Unit,             // НОВОЕ
+    onSelectDecision: (String) -> Unit,
     onOpenPhotos: () -> Unit,
     onNext: () -> Unit,
     onBack: () -> Unit
@@ -28,17 +28,14 @@ fun ReturnConditionScreen(
     val uriHandler = LocalUriHandler.current
     var hasDefect by remember { mutableStateOf(hasDefectInit) }
     var defectDesc by remember { mutableStateOf(defectDescInit) }
-
     val options = listOf("перевыложить без изменений", "изменить и перевыложить", "списать")
     var decision by remember { mutableStateOf(decisionInit) }
-
     fun normalizeUrl(u: String): String =
         if (u.startsWith("http://", true) || u.startsWith("https://", true)) u else "https://$u"
 
     val canProceed = printBarcode.isNotBlank() &&
             decision.isNotBlank() &&
             (!hasDefect || photosCount > 0)
-
     Column(
         Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -59,13 +56,11 @@ fun ReturnConditionScreen(
                 }
             )
         }
-
         if (reason.isNotBlank()) {
             Divider()
             Text("Причина возврата", style = MaterialTheme.typography.subtitle2)
             Text(reason)
         }
-
         Divider()
         Text("Состояние товара", style = MaterialTheme.typography.subtitle1)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -80,7 +75,6 @@ fun ReturnConditionScreen(
                 onChangeState(true, defectDesc)
             }) { Text("Есть дефекты") }
         }
-
         if (hasDefect) {
             OutlinedTextField(
                 value = defectDesc,
@@ -91,12 +85,10 @@ fun ReturnConditionScreen(
                 label = { Text("Описание дефекта") },
                 modifier = Modifier.fillMaxWidth()
             )
-
             OutlinedButton(
                 onClick = onOpenPhotos,
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Фото (${photosCount}/6)") }
-
             if (photosCount == 0) {
                 Text(
                     "Добавьте минимум 1 фото при наличии дефектов",
@@ -105,7 +97,6 @@ fun ReturnConditionScreen(
                 )
             }
         }
-
         Divider()
         Text("Что делаем с возвратом", style = MaterialTheme.typography.subtitle1)
         options.forEach { opt ->
@@ -120,7 +111,6 @@ fun ReturnConditionScreen(
                 Text(opt)
             }
         }
-
         Spacer(Modifier.weight(1f))
 
         Row(

@@ -72,7 +72,6 @@ fun LinkEditScreen(
     }
 }
 
-
 private fun extractAndNormalizeUrl(text: String): String? {
     val t = text.trim()
 

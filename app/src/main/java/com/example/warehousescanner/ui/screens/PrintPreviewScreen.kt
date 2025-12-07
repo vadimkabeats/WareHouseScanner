@@ -15,16 +15,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.warehousescanner.data.GoogleSheetClient
 import com.example.warehousescanner.printer.LabelPrinter
-import com.example.warehousescanner.printer.PdfLabelPrinter   // ← НОВЫЙ импорт
+import com.example.warehousescanner.printer.PdfLabelPrinter
 import com.example.warehousescanner.viewmodel.PrintSessionViewModel
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.sp
+
 @Composable
 fun PrintPreviewScreen(
     code: String,
@@ -36,19 +38,15 @@ fun PrintPreviewScreen(
     val activity = ctx as ComponentActivity
     val printSession: PrintSessionViewModel = viewModel(activity)
     val lastPrintedFull by printSession.lastPrintedTrackFull.collectAsState()
-
     var isLoading by remember { mutableStateOf(true) }
     var trackShort by remember { mutableStateOf<String?>(null) }
     var trackFull by remember { mutableStateOf<String?>(null) }
     var isMulti by remember { mutableStateOf<Boolean?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
-
-    // НОВОЕ: поля из листа "Этикетки"
-    var qtyToShip by remember { mutableStateOf<Int?>(null) }      // "Количество" (к отправке)
-    var qtyTotal by remember { mutableStateOf<Int?>(null) }       // "Кол-во при приемке"
-    var strongPack by remember { mutableStateOf<Boolean?>(null) } // усиленная упаковка
-
-    // НОВОЕ: URL PDF-этикетки
+    var itemName by remember { mutableStateOf<String?>(null) }
+    var qtyToShip by remember { mutableStateOf<Int?>(null) }
+    var qtyTotal by remember { mutableStateOf<Int?>(null) }
+    var strongPack by remember { mutableStateOf<Boolean?>(null) }
     var labelUrl by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(code) {
@@ -60,12 +58,11 @@ fun PrintPreviewScreen(
                 trackShort = resp.track?.takeIf { it.isNotBlank() }
                 trackFull  = (resp.full ?: resp.track)?.takeIf { !it.isNullOrBlank() }
                 isMulti    = resp.multi == true
-
                 qtyToShip   = resp.qty_ship
                 qtyTotal    = resp.qty_total
                 strongPack  = resp.strong_pack
-
-                labelUrl    = resp.label_url?.takeIf { !it.isNullOrBlank() } // ← НОВОЕ
+                labelUrl    = resp.label_url?.takeIf { !it.isNullOrBlank() }
+                itemName    = resp.name?.takeIf { it.isNotBlank() }
             } else {
                 trackShort = null
                 trackFull  = null
@@ -74,6 +71,7 @@ fun PrintPreviewScreen(
                 qtyTotal   = null
                 strongPack = null
                 labelUrl   = null
+                itemName   = null
             }
         } catch (e: Exception) {
             loadError = e.localizedMessage ?: "Ошибка загрузки"
@@ -84,6 +82,7 @@ fun PrintPreviewScreen(
             qtyTotal   = null
             strongPack = null
             labelUrl   = null
+            itemName   = null
         }
         isLoading = false
     }
@@ -96,31 +95,25 @@ fun PrintPreviewScreen(
     val requestBt = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { /* no-op */ }
-
-    val shouldSkipPrint: Boolean = !trackFull.isNullOrBlank() &&
-            (isMulti == true) &&
-            (lastPrintedFull != null) &&
-            (lastPrintedFull == trackFull)
-
     val canPrintText = !isLoading &&
             loadError == null &&
             !trackShort.isNullOrBlank() &&
             printer != null &&
-            !isPrinting &&
-            !shouldSkipPrint
-
+            !isPrinting
     val canPrintPdf = !isLoading &&
             loadError == null &&
             !trackShort.isNullOrBlank() &&
             !labelUrl.isNullOrBlank() &&
             printer != null &&
-            !isPrinting &&
-            !shouldSkipPrint
-
+            !isPrinting
     val warnColor = MaterialTheme.colors.error
     val normalColor = MaterialTheme.colors.onBackground
 
-    Column(Modifier.fillMaxSize().padding(20.dp)) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(20.dp)
+    ) {
         Text("Печать этикетки", style = MaterialTheme.typography.h6)
         Spacer(Modifier.height(8.dp))
         Text("Штрих-код: $code")
@@ -133,8 +126,26 @@ fun PrintPreviewScreen(
             else -> {
                 Text("Трек-номер: ${trackFull!!}")
 
+                val title = itemName?.takeIf { !it.isNullOrBlank() }
+                if (!title.isNullOrBlank()) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = "Название:",
+                        style = MaterialTheme.typography.body1
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.subtitle1.copy(
+                            textDecoration = TextDecoration.Underline
+                        ),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
                 qtyToShip?.let { qty ->
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(8.dp))
                     Text(
                         text = "К отправке: $qty",
                         color = if (qty > 1) warnColor else normalColor,
@@ -186,40 +197,7 @@ fun PrintPreviewScreen(
                 }
             }
         }
-
-        if (shouldSkipPrint && !trackFull.isNullOrBlank()) {
-            Spacer(Modifier.height(12.dp))
-            Surface(color = MaterialTheme.colors.secondary.copy(alpha = 0.15f)) {
-                Column(Modifier.fillMaxWidth().padding(12.dp)) {
-                    Text(
-                        text = "ЭТОТ ТОВАР ПРИНАДЛЕЖИТ КОРОБКЕ:",
-                        style = MaterialTheme.typography.subtitle1.copy(
-                            color = Color.Red,
-                            fontSize = 18.sp
-                        )
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = trackFull?.uppercase() ?: "",
-                        style = MaterialTheme.typography.subtitle1.copy(
-                            color = Color.Red,
-                            fontSize = 18.sp
-                        )
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = "ПОЛОЖИ ЕГО В ЭТУ КОРОБКУ. ПЕЧАТАТЬ ЭТИКЕТКУ НЕ НУЖНО.",
-                        style = MaterialTheme.typography.subtitle1.copy(
-                            color = Color.Red,
-                            fontSize = 16.sp
-                        )
-                    )
-                }
-            }
-        }
-
         Spacer(Modifier.height(16.dp))
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -264,98 +242,91 @@ fun PrintPreviewScreen(
                 onClick = onBack,
                 modifier = Modifier.weight(1f)
             ) { Text("Назад") }
+            Button(
+                enabled = canPrintText,
+                onClick = {
+                    if (Build.VERSION.SDK_INT >= 31 && !hasBtConnectPermission(ctx)) {
+                        requestBt.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                        status = "Нужно разрешение на Bluetooth"
+                        return@Button
+                    }
+                    val d = printer ?: return@Button.also { status = "Принтер не выбран" }
+                    val short = trackShort ?: return@Button.also { status = "Нет короткого трека" }
+                    val full  = trackFull ?: short
 
-            if (!shouldSkipPrint) {
-                // Кнопка "Печать" (по старому, трек)
-                Button(
-                    enabled = canPrintText,
-                    onClick = {
-                        if (Build.VERSION.SDK_INT >= 31 && !hasBtConnectPermission(ctx)) {
-                            requestBt.launch(Manifest.permission.BLUETOOTH_CONNECT)
-                            status = "Нужно разрешение на Bluetooth"
-                            return@Button
-                        }
-                        val d = printer ?: return@Button.also { status = "Принтер не выбран" }
-                        val short = trackShort ?: return@Button.also { status = "Нет короткого трека" }
-                        val full  = trackFull ?: short
-
-                        isPrinting = true
-                        status = null
-                        scope.launch {
+                    isPrinting = true
+                    status = null
+                    scope.launch {
+                        runCatching {
+                            LabelPrinter.printTsplFixedSmall(ctx, d, short, full)
+                        }.onSuccess {
+                            status = "Отправлено на печать"
+                            printSession.markPrinted(full)
                             runCatching {
-                                LabelPrinter.printTsplFixedSmall(ctx, d, short, full)
-                            }.onSuccess {
-                                status = "Отправлено на печать"
-                                printSession.markPrinted(full)
-                                runCatching {
-                                    GoogleSheetClient.labelPrinted(
-                                        trackFull = full,
-                                        trackShort = short,
-                                        printedAtMs = System.currentTimeMillis()
-                                    )
-                                }.onFailure { e ->
-                                    status = "Печать ок, но запись статуса не удалась: ${e.localizedMessage}"
-                                }
-                            }.onFailure { e ->
-                                status = "Ошибка печати: ${e.localizedMessage}"
-                            }
-                            isPrinting = false
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(if (isPrinting) "Печать…" else "Печать")
-                }
-
-                // Кнопка "Печать PDF"
-                Button(
-                    enabled = canPrintPdf,
-                    onClick = {
-                        if (Build.VERSION.SDK_INT >= 31 && !hasBtConnectPermission(ctx)) {
-                            requestBt.launch(Manifest.permission.BLUETOOTH_CONNECT)
-                            status = "Нужно разрешение на Bluetooth"
-                            return@Button
-                        }
-                        val d = printer ?: return@Button.also { status = "Принтер не выбран" }
-                        val short = trackShort ?: return@Button.also { status = "Нет короткого трека" }
-                        val full  = trackFull ?: short
-                        val url   = labelUrl ?: return@Button.also { status = "Нет ссылки на PDF" }
-
-                        isPrinting = true
-                        status = null
-                        scope.launch {
-                            runCatching {
-                                PdfLabelPrinter.printPdfLabelFromUrl(
-                                    context = ctx,
-                                    device = d,
-                                    pdfUrl = url
+                                GoogleSheetClient.labelPrinted(
+                                    trackFull = full,
+                                    trackShort = short,
+                                    printedAtMs = System.currentTimeMillis()
                                 )
-                            }.onSuccess {
-                                status = "PDF отправлен на печать"
-                                printSession.markPrinted(full)
-                                runCatching {
-                                    GoogleSheetClient.labelPrinted(
-                                        trackFull = full,
-                                        trackShort = short,
-                                        printedAtMs = System.currentTimeMillis()
-                                    )
-                                }.onFailure { e ->
-                                    status = "PDF напечатан, но запись статуса не удалась: ${e.localizedMessage}"
-                                }
                             }.onFailure { e ->
-                                status = "Ошибка печати PDF: ${e.localizedMessage}"
+                                status = "Печать ок, но запись статуса не удалась: ${e.localizedMessage}"
                             }
-                            isPrinting = false
+                        }.onFailure { e ->
+                            status = "Ошибка печати: ${e.localizedMessage}"
                         }
-                    },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(if (isPrinting) "Печать…" else "Печать PDF")
-                }
+                        isPrinting = false
+                    }
+                },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(if (isPrinting) "Печать…" else "Печать")
+            }
+            Button(
+                enabled = canPrintPdf,
+                onClick = {
+                    if (Build.VERSION.SDK_INT >= 31 && !hasBtConnectPermission(ctx)) {
+                        requestBt.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                        status = "Нужно разрешение на Bluetooth"
+                        return@Button
+                    }
+                    val d = printer ?: return@Button.also { status = "Принтер не выбран" }
+                    val short = trackShort ?: return@Button.also { status = "Нет короткого трека" }
+                    val full  = trackFull ?: short
+                    val url   = labelUrl ?: return@Button.also { status = "Нет ссылки на PDF" }
+
+                    isPrinting = true
+                    status = null
+                    scope.launch {
+                        runCatching {
+                            PdfLabelPrinter.printPdfLabelFromUrl(
+                                context = ctx,
+                                device = d,
+                                pdfUrl = url
+                            )
+                        }.onSuccess {
+                            status = "PDF отправлен на печать"
+                            printSession.markPrinted(full)
+                            runCatching {
+                                GoogleSheetClient.labelPrinted(
+                                    trackFull = full,
+                                    trackShort = short,
+                                    printedAtMs = System.currentTimeMillis()
+                                )
+                            }.onFailure { e ->
+                                status = "PDF напечатан, но запись статуса не удалась: ${e.localizedMessage}"
+                            }
+                        }.onFailure { e ->
+                            status = "Ошибка печати PDF: ${e.localizedMessage}"
+                        }
+                        isPrinting = false
+                    }
+                },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(if (isPrinting) "Печать…" else "Печать PDF")
             }
         }
     }
-
     if (showPicker) {
         PickPrinterDialog(
             onPick = { d: BluetoothDevice ->
@@ -380,7 +351,6 @@ fun PickPrinterDialog(
     ) { granted ->
         btGranted = granted || hasBtConnectPermission(ctx)
     }
-
     val devices: List<BluetoothDevice> = remember(btGranted) {
         if (btGranted) LabelPrinter.getPairedDevices(ctx) else emptyList()
     }
@@ -413,8 +383,6 @@ fun PickPrinterDialog(
         }
     )
 }
-
-/* ---------- Вспомогательные функции ---------- */
 
 private fun hasBtConnectPermission(context: Context): Boolean {
     return if (Build.VERSION.SDK_INT >= 31) {

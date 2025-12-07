@@ -3,6 +3,7 @@ package com.example.warehousescanner.data
 import retrofit2.http.*
 
 data class LookupResponse(val found: Boolean, val link: String?)
+
 data class SaveResponse(val ok: Boolean?, val updated: Boolean? = null, val error: String? = null)
 
 data class AfterUploadRequest(
@@ -23,7 +24,7 @@ data class AfterUploadRequest(
 data class TrackLookupRequest(
     val mode: String = "track",
     val barcode: String,
-    val gid: Long = 522894316L
+    val gid: Long = 400055422L
 )
 
 data class TrackLookupResponse(
@@ -35,7 +36,19 @@ data class TrackLookupResponse(
     val qty_ship: Int?,
     val qty_total: Int?,
     val strong_pack: Boolean?,
-    val label_url: String?      // ← НОВОЕ
+    val label_url: String?,
+    val name: String? = null
+)
+
+data class ReturnIntakeRequest(
+    val mode: String = "returnIntake",
+    val trackNumber: String,
+    val photos: List<String>
+)
+
+data class SimpleOkResponse(
+    val ok: Boolean,
+    val error: String?
 )
 
 data class PutAwayRequest(
@@ -52,23 +65,26 @@ data class AuthRequest(
     val lastName: String,
     val password: String
 )
+
 data class AuthResponse(val ok: Boolean, val fio: String? = null, val error: String? = null)
 
 data class ScanExistsRequest(val mode: String = "scanExists", val barcode: String)
+
 data class ScanExistsResponse(val ok: Boolean, val exists: Boolean? = null, val error: String? = null)
 
 data class ReturnLookupRequest(
     val mode: String = "returnLookup",
     val dispatchNumber: String
 )
+
 data class ReturnLookupResponse(
     val ok: Boolean,
     val found: Boolean,
-    val barcode: String? = null,          // первый товар (для совместимости)
+    val barcode: String? = null,
     val reason: String? = null,
     val url: String? = null,
     val error: String? = null,
-    val items: List<ReturnLookupItem>? = null // НОВОЕ — все товары по dispatch
+    val items: List<ReturnLookupItem>? = null
 )
 
 data class ReturnLookupItem(
@@ -78,7 +94,35 @@ data class ReturnLookupItem(
     val reason: String? = null
 )
 
-/** НОВОЕ: добавили decision */
+data class ReturnProcessLookupRequest(
+    val mode: String = "returnsProcessLookup",
+    val trackNumber: String
+)
+
+data class ReturnProcessItemDto(
+    val barcode: String,
+    val title: String?,
+    val action: String?
+)
+
+data class ReturnProcessLookupResponse(
+    val ok: Boolean,
+    val found: Boolean? = null,
+    val items: List<ReturnProcessItemDto>? = null,
+    val error: String? = null
+)
+
+data class ReturnProcessDoneRequest(
+    val mode: String = "returnProcessDone",
+    val trackNumber: String
+)
+
+data class ReturnProcessDoneResponse(
+    val ok: Boolean,
+    val updatedRows: Int? = null,
+    val error: String? = null
+)
+
 data class SaveReturnRequest(
     val mode: String = "saveReturn",
     val user: String,
@@ -175,4 +219,26 @@ interface GoogleSheetApi {
         @Query("key") key: String,
         @Body body: LabelPrintedRequest
     ): LabelPrintedResponse
+
+    @POST
+    suspend fun returnIntake(
+        @Url url: String,
+        @Query("key") key: String,
+        @Body body: ReturnIntakeRequest
+    ): SimpleOkResponse
+
+    @POST
+    suspend fun returnProcessLookup(
+        @Url url: String,
+        @Query("key") key: String,
+        @Body body: ReturnProcessLookupRequest
+    ): ReturnProcessLookupResponse
+
+    @POST
+    suspend fun returnProcessDone(
+        @Url url: String,
+        @Query("key") key: String,
+        @Body body: ReturnProcessDoneRequest
+    ): ReturnProcessDoneResponse
+
 }

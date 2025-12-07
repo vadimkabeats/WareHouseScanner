@@ -21,7 +21,7 @@ fun ReturnResultScreen(
     photos: List<Uri>,
     userFullName: String,
     oauthToken: String,
-    decision: String,                        // НОВОЕ
+    decision: String,
     onNextToPrint: () -> Unit,
     onBackHome: () -> Unit
 ) {
@@ -31,7 +31,6 @@ fun ReturnResultScreen(
     var isLoading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
     var sentOk by remember { mutableStateOf(false) }
-
     val canSend = !sentOk &&
             printBarcode.isNotBlank() &&
             decision.isNotBlank() &&
@@ -45,7 +44,6 @@ fun ReturnResultScreen(
         Text("Дефект: ${if (hasDefect) "Есть" else "Нет"}")
         if (hasDefect && defectDesc.isNotBlank()) Text("Описание: $defectDesc")
         Text("Фото: ${photos.size} шт.")
-
         if (hasDefect && photos.isEmpty()) {
             Text(
                 "При наличии дефектов необходимо добавить хотя бы 1 фото",
@@ -53,7 +51,6 @@ fun ReturnResultScreen(
                 style = MaterialTheme.typography.caption
             )
         }
-
         Spacer(Modifier.weight(1f))
 
         if (isLoading) {
@@ -72,7 +69,7 @@ fun ReturnResultScreen(
                                 "defectDesc" to (if (hasDefect) defectDesc else ""),
                                 "photosCount" to photos.size,
                                 "user" to userFullName,
-                                "decision" to decision                     // НОВОЕ (в metadata на Диске)
+                                "decision" to decision
                             )
                             val yd = YandexDiskClient.uploadReturnBundleJson(
                                 context = context,
@@ -88,7 +85,7 @@ fun ReturnResultScreen(
                                 barcode = printBarcode,
                                 defectDesc = if (hasDefect) defectDesc else "",
                                 photoLinks = publicUrls,
-                                decision = decision                        // НОВОЕ
+                                decision = decision
                             )
                             if (res.ok == true) {
                                 sentOk = true

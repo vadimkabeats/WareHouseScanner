@@ -1,7 +1,6 @@
 package com.example.warehousescanner.ui.screens
 
 import android.Manifest
-import android.bluetooth.BluetoothDevice
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
@@ -20,15 +19,13 @@ import com.example.warehousescanner.printer.LabelPrinter
 import kotlinx.coroutines.launch
 
 @Composable
-fun IdentifyPrintScreen(
-    barcode: String,
-    onSkip: () -> Unit,
-    onPrinted: () -> Unit,
+fun PrintBarcodeScreen(
     onBack: () -> Unit
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
 
+    var barcode by remember { mutableStateOf("") }
     var printer by remember { mutableStateOf(LabelPrinter.restoreLastPrinter(ctx)) }
     var showPicker by remember { mutableStateOf(printer == null) }
     var isPrinting by remember { mutableStateOf(false) }
@@ -36,14 +33,28 @@ fun IdentifyPrintScreen(
 
     val requestBt = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { /* no-op */ }
+    ) {}
 
-    val canPrint = barcode.isNotBlank() && (printer != null) && !isPrinting
+    val canPrint = barcode.isNotBlank() &&
+            printer != null &&
+            !isPrinting
 
-    Column(Modifier.fillMaxSize().padding(20.dp)) {
-        Text("Печать этикетки (товар)", style = MaterialTheme.typography.h6)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(20.dp)
+    ) {
+        Text("Печать ШК", style = MaterialTheme.typography.h6)
         Spacer(Modifier.height(8.dp))
-        Text("ШК товара: ${barcode.ifBlank { "—" }}")
+
+        OutlinedTextField(
+            value = barcode,
+            onValueChange = { barcode = it },
+            label = { Text("ШК товара") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+
         Spacer(Modifier.height(16.dp))
 
         Row(
@@ -53,20 +64,20 @@ fun IdentifyPrintScreen(
         ) {
             if (printer == null) {
                 Button(onClick = {
-                    if (Build.VERSION.SDK_INT >= 31 && !hasBtConnectPermission(ctx)) {
+                    if (Build.VERSION.SDK_INT >= 31 && !hasBtConnectPermissionBarcode(ctx)) {
                         requestBt.launch(Manifest.permission.BLUETOOTH_CONNECT)
                     }
                     showPicker = true
                 }) { Text("Выбрать принтер") }
             } else {
                 Text(
-                    text = safeDeviceLabel(ctx, printer!!),
+                    text = safeDeviceLabelBarcode(ctx, printer!!),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
                 TextButton(onClick = {
-                    if (Build.VERSION.SDK_INT >= 31 && !hasBtConnectPermission(ctx)) {
+                    if (Build.VERSION.SDK_INT >= 31 && !hasBtConnectPermissionBarcode(ctx)) {
                         requestBt.launch(Manifest.permission.BLUETOOTH_CONNECT)
                     }
                     showPicker = true
@@ -91,35 +102,37 @@ fun IdentifyPrintScreen(
                 modifier = Modifier.weight(1f)
             ) { Text("Назад") }
 
-            OutlinedButton(
-                onClick = onSkip,
-                modifier = Modifier.weight(1f)
-            ) { Text("Пропустить") }
-
             Button(
                 enabled = canPrint,
                 onClick = {
-                    if (Build.VERSION.SDK_INT >= 31 && !hasBtConnectPermission(ctx)) {
+                    val value = barcode.trim()
+                    if (value.isEmpty()) {
+                        status = "Введите ШК"
+                        return@Button
+                    }
+
+                    if (Build.VERSION.SDK_INT >= 31 && !hasBtConnectPermissionBarcode(ctx)) {
                         requestBt.launch(Manifest.permission.BLUETOOTH_CONNECT)
                         status = "Нужно разрешение на Bluetooth"
                         return@Button
                     }
-                    val d = printer ?: return@Button.also { status = "Принтер не выбран" }
-                    if (barcode.isBlank()) { status = "Пустой ШК"; return@Button }
+
+                    val d = printer ?: return@Button.also {
+                        status = "Принтер не выбран"
+                    }
 
                     isPrinting = true
                     status = null
                     scope.launch {
                         runCatching {
-                            LabelPrinter.printTsplFixedSmallCompact(
-                                context = ctx,
-                                device = d,
-                                barcodeText = barcode,
-                                captionText = barcode
+                            LabelPrinter.printTsplFixedSmall(
+                                ctx,
+                                d,
+                                value,
+                                value
                             )
                         }.onSuccess {
                             status = "Отправлено на печать"
-                            onPrinted()
                         }.onFailure { e ->
                             status = "Ошибка печати: ${e.localizedMessage}"
                         }
@@ -127,13 +140,14 @@ fun IdentifyPrintScreen(
                     }
                 },
                 modifier = Modifier.weight(1f)
-            ) { Text(if (isPrinting) "Печать…" else "Печать и продолжить") }
+            ) {
+                Text(if (isPrinting) "Печать…" else "Печать")
+            }
         }
     }
-
     if (showPicker) {
-        IdentifyPickPrinterDialog(
-            onPick = { d: BluetoothDevice ->
+        PickPrinterDialog(
+            onPick = { d ->
                 printer = d
                 LabelPrinter.saveLastPrinter(ctx, d)
                 showPicker = false
@@ -143,62 +157,18 @@ fun IdentifyPrintScreen(
     }
 }
 
-@Composable
-private fun IdentifyPickPrinterDialog(
-    onPick: (BluetoothDevice) -> Unit,
-    onCancel: () -> Unit
-) {
-    val ctx = LocalContext.current
-    var btGranted by remember { mutableStateOf(hasBtConnectPermission(ctx)) }
-    val requestBt = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        btGranted = granted || hasBtConnectPermission(ctx)
-    }
-
-    val devices: List<BluetoothDevice> = remember(btGranted) {
-        if (btGranted) LabelPrinter.getPairedDevices(ctx) else emptyList()
-    }
-
-    AlertDialog(
-        onDismissRequest = onCancel,
-        title = { Text("Выберите принтер") },
-        text = {
-            Column {
-                if (!btGranted && Build.VERSION.SDK_INT >= 31) {
-                    Text("Чтобы показать спаренные устройства, нужно разрешение BLUETOOTH_CONNECT.")
-                    Spacer(Modifier.height(8.dp))
-                    Button(onClick = { requestBt.launch(Manifest.permission.BLUETOOTH_CONNECT) }) {
-                        Text("Разрешить Bluetooth")
-                    }
-                } else if (devices.isEmpty()) {
-                    Text("Нет спаренных устройств.\nПодключите принтер в системных настройках Bluetooth.")
-                } else {
-                    devices.forEach { d: BluetoothDevice ->
-                        TextButton(onClick = { onPick(d) }) {
-                            Text(safeDeviceLabel(ctx, d))
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onCancel) { Text("Отмена") }
-        }
-    )
-}
-
-private fun hasBtConnectPermission(context: Context): Boolean {
+private fun hasBtConnectPermissionBarcode(context: Context): Boolean {
     return if (Build.VERSION.SDK_INT >= 31) {
         ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.BLUETOOTH_CONNECT
         ) == PackageManager.PERMISSION_GRANTED
-    } else true
+    } else {
+        true
+    }
 }
 
-private fun safeDeviceLabel(context: Context, device: BluetoothDevice): String {
+private fun safeDeviceLabelBarcode(context: Context, device: android.bluetooth.BluetoothDevice): String {
     if (Build.VERSION.SDK_INT >= 31 &&
         ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT)
         != PackageManager.PERMISSION_GRANTED

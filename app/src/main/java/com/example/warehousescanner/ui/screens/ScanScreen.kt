@@ -46,17 +46,15 @@ private fun Context.findActivity(): Activity? = when (this) {
 fun ScanScreen(
     instanceKey: String = "",
     allowManualInput: Boolean = true,
-    inputHint: String? = null,                        // подсказка под полем ручного ввода
-    validator: ((String) -> String?)? = null,         // вернуть null = ок, иначе текст ошибки
-    torchOn: Boolean = false,                         // уже был у тебя — оставляем
-    manualAllowSpaces: Boolean = false,               // НОВОЕ: разрешить пробелы в ручном вводе
+    inputHint: String? = null,
+    validator: ((String) -> String?)? = null,
+    torchOn: Boolean = false,
+    manualAllowSpaces: Boolean = false,
     onNext: (String) -> Unit
 ) {
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
     val lifecycleOwner = LocalLifecycleOwner.current
-
-    // ---------- Permission ----------
     var hasPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
@@ -68,7 +66,6 @@ fun ScanScreen(
     var scannedCode by remember(instanceKey) { mutableStateOf<String?>(null) }
     var scanError by remember(instanceKey) { mutableStateOf<String?>(null) }
     var initError by remember(instanceKey) { mutableStateOf<String?>(null) }
-
     val requestPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -84,26 +81,21 @@ fun ScanScreen(
             requestPermission.launch(Manifest.permission.CAMERA)
         }
     }
-
-    // ---------- Manual input ----------
     var showManual by rememberSaveable(instanceKey) { mutableStateOf(false) }
     var manualText by rememberSaveable(instanceKey) { mutableStateOf("") }
     var manualError by rememberSaveable(instanceKey) { mutableStateOf<String?>(null) }
-
     fun validateManualCommon(s: String): String? {
         val v = s.trim()
         if (v.isEmpty()) return "Введите код"
         if (v.length > 64) return "Слишком длинный код (до 64 символов)"
         return null
     }
-
     fun openManual() {
         manualText = ""
         manualError = null
         showManual = true
     }
 
-    // ---------- Camera Components ----------
     val previewView = remember(instanceKey) {
         Log.d("ScanScreen", "Creating PreviewView for instanceKey: $instanceKey")
         androidx.camera.view.PreviewView(context).apply {
@@ -111,14 +103,11 @@ fun ScanScreen(
             scaleType = androidx.camera.view.PreviewView.ScaleType.FILL_CENTER
         }
     }
-
     val controller = remember(instanceKey) {
         Log.d("ScanScreen", "Creating CameraController for instanceKey: $instanceKey")
         androidx.camera.view.LifecycleCameraController(context)
     }
-
     val analysisExecutor = remember(instanceKey) { Executors.newSingleThreadExecutor() }
-
     val scanner = remember(instanceKey) {
         val opts = BarcodeScannerOptions.Builder()
             .setBarcodeFormats(Barcode.FORMAT_EAN_13, Barcode.FORMAT_CODE_128)
@@ -126,29 +115,22 @@ fun ScanScreen(
         BarcodeScanning.getClient(opts)
     }
 
-    // ---------- Camera Setup ----------
     LaunchedEffect(hasPermission, instanceKey) {
         if (!hasPermission) return@LaunchedEffect
-
         initError = null
         Log.d("ScanScreen", "Setting up camera for instanceKey: $instanceKey")
-
         try {
             runCatching { controller.clearImageAnalysisAnalyzer() }
             runCatching { controller.unbind() }
             runCatching { previewView.controller = null }
-
             kotlinx.coroutines.delay(1000)
-
             controller.cameraSelector = androidx.camera.core.CameraSelector.DEFAULT_BACK_CAMERA
             controller.setEnabledUseCases(
                 androidx.camera.view.CameraController.IMAGE_ANALYSIS
             )
-
             controller.setImageAnalysisAnalyzer(analysisExecutor) { proxy ->
                 try {
                     if (scannedCode != null) { proxy.close(); return@setImageAnalysisAnalyzer }
-
                     val media = proxy.image ?: run { proxy.close(); return@setImageAnalysisAnalyzer }
                     val image = InputImage.fromMediaImage(media, proxy.imageInfo.rotationDegrees)
                     scanner.process(image)
@@ -173,7 +155,6 @@ fun ScanScreen(
                 }
             }
 
-            // Включаем/выключаем фонарик по флагу torchOn (если камера позволяет)
             runCatching { controller.enableTorch(torchOn) }
 
             previewView.controller = controller
@@ -186,12 +167,10 @@ fun ScanScreen(
         }
     }
 
-    // Переключение фонарика на лету
     LaunchedEffect(torchOn) {
         runCatching { controller.enableTorch(torchOn) }
     }
 
-    // Cleanup
     DisposableEffect(instanceKey) {
         onDispose {
             Log.d("ScanScreen", "Cleaning up camera for instanceKey: $instanceKey")
@@ -203,7 +182,6 @@ fun ScanScreen(
         }
     }
 
-    // ---------- UI ----------
     Box(Modifier.fillMaxSize()) {
 
         when {
@@ -261,7 +239,6 @@ fun ScanScreen(
                                 Text("Разрешить камеру")
                             }
                         }
-
                         if (allowManualInput) {
                             Spacer(Modifier.height(12.dp))
                             OutlinedButton(onClick = { openManual() }) { Text("Ввести вручную") }
@@ -271,7 +248,6 @@ fun ScanScreen(
             }
 
             else -> {
-                // Камера
                 AndroidView(
                     modifier = Modifier
                         .fillMaxSize()
@@ -286,7 +262,6 @@ fun ScanScreen(
                     }
                 )
 
-                // Ошибка валидации — всплывашка поверх камеры
                 if (scanError != null) {
                     Box(
                         Modifier
@@ -312,7 +287,6 @@ fun ScanScreen(
                     }
                 }
 
-                // Кнопка "Ввести вручную" — внизу по центру поверх камеры
                 if (allowManualInput && scannedCode == null) {
                     Button(
                         onClick = { openManual() },
@@ -323,7 +297,6 @@ fun ScanScreen(
                     ) { Text("Ввести вручную") }
                 }
 
-                // Результат сканирования (оверлей)
                 scannedCode?.let { code ->
                     Surface(
                         modifier = Modifier.fillMaxSize(),
@@ -350,7 +323,6 @@ fun ScanScreen(
             }
         }
 
-        // Диалог ручного ввода
         if (showManual && allowManualInput) {
             AlertDialog(
                 onDismissRequest = { showManual = false },
@@ -360,8 +332,6 @@ fun ScanScreen(
                         OutlinedTextField(
                             value = manualText,
                             onValueChange = { txt ->
-                                // НОВОЕ: если разрешены пробелы — удаляем только переводы строк,
-                                // иначе убираем любые пробелы, как раньше.
                                 val cleaned = if (manualAllowSpaces)
                                     txt.replace(Regex("[\\r\\n]+"), "")
                                 else

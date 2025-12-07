@@ -1,4 +1,3 @@
-// ui/screens/ReconcileScanScreen.kt
 package com.example.warehousescanner.ui.screens
 
 import androidx.compose.material.*
@@ -6,7 +5,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.example.warehousescanner.viewmodel.ReconcileViewModel
@@ -21,9 +19,8 @@ fun ReconcileScanScreen(
     val scope = rememberCoroutineScope()
     var showChoice by remember { mutableStateOf<String?>(null) }
     var scanKey by remember { mutableStateOf(0) }
-    var resetting by remember { mutableStateOf(false) }   // ← добавили
+    var resetting by remember { mutableStateOf(false) }
 
-    // На время сброса камеру не монтируем вообще
     if (!resetting) {
         ScanScreen(
             instanceKey = "reconcile_$scanKey",
@@ -37,7 +34,6 @@ fun ReconcileScanScreen(
             showChoice = scanned
         }
     } else {
-        // Нейтральная «прослойка», можно и без индикатора – главное не держать камеру
         Box(Modifier.fillMaxSize()) {
             CircularProgressIndicator(Modifier.align(Alignment.Center))
         }
@@ -50,13 +46,11 @@ fun ReconcileScanScreen(
             text  = { Text(showChoice!!) },
             confirmButton = {
                 Button(onClick = {
-                    // Полный сброс: закрываем диалог → короткая пауза → новый ключ
                     showChoice = null
                     scope.launch {
                         resetting = true
-                        delay(350)      // ← ключевая задержка, чтобы CameraX успела отпуститься
-                        scanKey++       // пересоздаст ScanScreen (у вас внутри уже есть delay(1000) на сетап камеры)
-                        // можно без второй задержки — камера сама поднимется в ScanScreen
+                        delay(350)
+                        scanKey++
                         resetting = false
                         onNextItem()
                     }

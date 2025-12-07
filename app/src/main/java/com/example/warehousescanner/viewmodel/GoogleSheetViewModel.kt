@@ -10,14 +10,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 class GoogleSheetViewModel(application: Application) : AndroidViewModel(application) {
-
     private val _linkState = MutableStateFlow<String?>(null)
     val linkState: StateFlow<String?> = _linkState
-
-
     private val _trackState = MutableStateFlow<String?>(null)
     val trackState: StateFlow<String?> = _trackState
-
     fun lookup(barcode: String) {
         viewModelScope.launch {
             _linkState.value = null
@@ -29,7 +25,6 @@ class GoogleSheetViewModel(application: Application) : AndroidViewModel(applicat
             }
         }
     }
-
     fun lookupTrack(barcode: String) {
         viewModelScope.launch {
             _trackState.value = null
@@ -41,7 +36,6 @@ class GoogleSheetViewModel(application: Application) : AndroidViewModel(applicat
             }
         }
     }
-
     fun reset() { _linkState.value = null }
     fun resetTrack() { _trackState.value = null }
 }

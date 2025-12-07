@@ -6,6 +6,7 @@ import okhttp3.ResponseBody
 import retrofit2.http.*
 
 data class UploadResponse(@SerializedName("href") val href: String)
+
 data class ResourceResponse(@SerializedName("public_url") val publicUrl: String?)
 
 interface YandexDiskApi {

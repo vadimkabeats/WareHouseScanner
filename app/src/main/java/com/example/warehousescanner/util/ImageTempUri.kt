@@ -11,9 +11,6 @@ fun createTempImageUri(context: Context): Uri {
         ?: context.filesDir
     val dir = File(base, "CameraTemp").apply { mkdirs() }
     val file = File.createTempFile("photo_", ".jpg", dir)
-
-
     val authority = "${context.packageName}.fileprovider"
-
     return FileProvider.getUriForFile(context, authority, file)
 }

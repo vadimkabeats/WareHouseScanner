@@ -22,14 +22,11 @@ fun ReconcileBrowseScreen(
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Text("Все товары", style = MaterialTheme.typography.h6)
         Spacer(Modifier.height(8.dp))
-
-        // шапка
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
             Text("Трек-номер", modifier = Modifier.weight(1.6f))
             Text("Название",   modifier = Modifier.weight(2.4f))
         }
         Divider()
-
         LazyColumn(Modifier.weight(1f)) {
             items(items) { item ->
                 BrowseRow2Col(
@@ -40,7 +37,6 @@ fun ReconcileBrowseScreen(
                 Divider()
             }
         }
-
         Spacer(Modifier.height(8.dp))
         OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
             Text("Назад")
@@ -72,7 +68,6 @@ private fun BrowseRow2Col(
                 color = MaterialTheme.colors.primary
             )
         }
-
         AnimatedVisibility(visible = expanded) {
             Column(Modifier.fillMaxWidth().padding(top = 6.dp, start = 4.dp, end = 4.dp)) {
                 DetailRow(label = "ШК товара",  value = item.barcode.ifBlank { "—" })

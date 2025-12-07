@@ -8,7 +8,6 @@ import kotlinx.coroutines.flow.StateFlow
 class UserViewModel(app: Application): AndroidViewModel(app) {
     private val _fullName = MutableStateFlow("")
     val fullName: StateFlow<String> = _fullName
-
     fun setFullName(fio: String) { _fullName.value = fio }
     fun clearFullName() { _fullName.value = "" }
 }

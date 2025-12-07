@@ -5,7 +5,6 @@ import android.bluetooth.BluetoothDevice
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -17,9 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.warehousescanner.printer.LabelPrinter
-import com.example.warehousescanner.viewmodel.ReturnViewModel
 import kotlinx.coroutines.launch
 
 @Composable
@@ -34,31 +31,23 @@ fun ReturnPrintScreen(
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-
     var printer by remember { mutableStateOf(LabelPrinter.restoreLastPrinter(ctx)) }
     var showPicker by remember { mutableStateOf(printer == null) }
     var isPrinting by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
-
-
     val requestBt = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { /* no-op */ }
-
     val canPrint = printer != null && !isPrinting && barcodeToPrint.isNotBlank()
-
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         Text("Печать этикетки (Возврат)", style = MaterialTheme.typography.h6)
         Spacer(Modifier.height(8.dp))
         Text("Dispatch №: $dispatchNumber")
         Text("ШК (печать): $barcodeToPrint")
-
         Text("Дефект: ${if (hasDefect) "Есть" else "Нет"}")
         if (hasDefect && defectDesc.isNotBlank()) Text("Описание: $defectDesc")
         Text("Фото: $photosCount шт.")
-
         Spacer(Modifier.height(16.dp))
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -86,14 +75,12 @@ fun ReturnPrintScreen(
                 }) { Text("Сменить") }
             }
         }
-
         status?.let {
             Spacer(Modifier.height(12.dp))
             Text(it)
         }
 
         Spacer(Modifier.weight(1f))
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -103,7 +90,6 @@ fun ReturnPrintScreen(
                 onClick = onBack,
                 modifier = Modifier.weight(1f)
             ) { Text("Назад") }
-
             Button(
                 enabled = canPrint,
                 onClick = {
@@ -113,12 +99,10 @@ fun ReturnPrintScreen(
                         return@Button
                     }
                     val d = printer ?: return@Button.also { status = "Принтер не выбран" }
-
                     isPrinting = true
                     status = null
                     scope.launch {
                         runCatching {
-                            // Печатаем barcodeToPrint (и подпись тем же)
                             LabelPrinter.printTsplFixedSmallCompact(
                                 context = ctx,
                                 device = d,
@@ -138,15 +122,12 @@ fun ReturnPrintScreen(
                 Text(if (isPrinting) "Печать…" else "Печать")
             }
         }
-
         Spacer(Modifier.height(8.dp))
-
         OutlinedButton(
             onClick = onBackHome,
             modifier = Modifier.fillMaxWidth()
         ) { Text("В главное меню") }
     }
-
     if (showPicker) {
         PickReturnPrinterDialog(
             onPick = { d: BluetoothDevice ->
@@ -171,7 +152,6 @@ private fun PickReturnPrinterDialog(
     ) { granted ->
         btGranted = granted || hasBtConnectPermission(ctx)
     }
-
     val devices: List<BluetoothDevice> = remember(btGranted) {
         if (btGranted) LabelPrinter.getPairedDevices(ctx) else emptyList()
     }
@@ -205,7 +185,6 @@ private fun PickReturnPrinterDialog(
     )
 }
 
-/* helpers */
 private fun hasBtConnectPermission(context: Context): Boolean {
     return if (Build.VERSION.SDK_INT >= 31) {
         ContextCompat.checkSelfPermission(

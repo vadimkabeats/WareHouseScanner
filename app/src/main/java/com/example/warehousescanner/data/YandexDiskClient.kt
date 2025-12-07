@@ -27,7 +27,6 @@ import kotlinx.coroutines.coroutineScope
 
 data class YDUploadResult(val folder: String, val publicPhotoUrls: List<String>)
 
-/** Локальный ретрай только для YandexDisk — чтобы не конфликтовать с GoogleSheetClient */
 private class YdRetryOnTimeoutInterceptor(private val retries: Int = 2) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): okhttp3.Response {
         var tries = 0
@@ -50,10 +49,10 @@ object YandexDiskClient {
     private suspend fun loadAndCompressJpeg(
         context: Context,
         uri: Uri,
-        maxSide: Int = 1600,   // максимальная сторона в пикселях
-        quality: Int = 80      // качество JPEG
+        maxSide: Int = 1600,
+        quality: Int = 80
     ): ByteArray = withContext(Dispatchers.IO) {
-        // 1) Сначала только узнаём размеры
+
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         context.contentResolver.openInputStream(uri)?.use {
             BitmapFactory.decodeStream(it, null, bounds)
@@ -63,7 +62,6 @@ object YandexDiskClient {
         val origH = bounds.outHeight
         if (origW <= 0 || origH <= 0) return@withContext ByteArray(0)
 
-        // 2) Считаем inSampleSize (во сколько раз уменьшать)
         var sample = 1
         val maxOrigSide = maxOf(origW, origH)
         while (maxOrigSide / sample > maxSide) {
@@ -76,7 +74,6 @@ object YandexDiskClient {
             BitmapFactory.decodeStream(it, null, opts)
         } ?: return@withContext ByteArray(0)
 
-        // 3) Сжимаем в JPEG
         val out = ByteArrayOutputStream()
         bmp.compress(Bitmap.CompressFormat.JPEG, quality, out)
         bmp.recycle()
@@ -95,9 +92,9 @@ object YandexDiskClient {
             .addInterceptor(YdRetryOnTimeoutInterceptor(retries = 2))
             .retryOnConnectionFailure(true)
             .connectTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(120, TimeUnit.SECONDS)  // больше времени на отправку
-            .readTimeout(120, TimeUnit.SECONDS)   // больше времени на ответ
-            .callTimeout(0, TimeUnit.SECONDS)     // без общего дедлайна
+            .writeTimeout(120, TimeUnit.SECONDS)
+            .readTimeout(120, TimeUnit.SECONDS)
+            .callTimeout(0, TimeUnit.SECONDS)
             .build()
 
         api = Retrofit.Builder()
@@ -120,7 +117,6 @@ object YandexDiskClient {
 
     private fun today(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
 
-    // --------- «Добавить товар» ---------
     private fun todayWarehouseFolder(): String = "Warehouse/${today()}"
 
     private suspend fun ensureItemFolder(barcode: String): String {
@@ -138,36 +134,30 @@ object YandexDiskClient {
         metadata: Any,
         photos: List<Uri>
     ): YDUploadResult {
-        // 1) Папка под товар на сегодня
         val folder = ensureItemFolder(barcode)
 
-        // 2) metadata.json (один небольшой файл — можно как раньше, синхронно)
         val json = Gson().toJson(metadata).toByteArray(Charsets.UTF_8)
         uploadBytes("$folder/metadata.json", json)
 
-        // 3) Фото — сжимаем и грузим ПАРАЛЛЕЛЬНО
         val publicLinks = coroutineScope {
             photos.mapIndexed { i, uri ->
                 async(Dispatchers.IO) {
-                    // 3.1) читаем и сжимаем
+
                     val bytes = loadAndCompressJpeg(context, uri)
                     if (bytes.isEmpty()) return@async null
 
                     val photoName = "${barcode}_${i + 1}.jpg"
                     val path = "$folder/$photoName"
 
-                    // 3.2) грузим на Диск
                     uploadBytes(path, bytes)
 
-                    // 3.3) публикуем и достаём public_url (как раньше)
                     runCatching {
                         api.publish(authHeader, path)
                         api.getResource(authHeader, path).publicUrl
                     }.getOrNull()
                 }
-            }.mapNotNull { it.await() }  // оставляем только не-null ссылки
+            }.mapNotNull { it.await() }
         }
-
         return YDUploadResult(folder, publicLinks)
     }
 
@@ -211,7 +201,6 @@ object YandexDiskClient {
                 }
             }.mapNotNull { it.await() }
         }
-
         return YDUploadResult(folder, publicLinks)
     }
 }

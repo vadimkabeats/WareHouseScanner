@@ -27,15 +27,12 @@ fun ResultScreen(
     onBackHome: () -> Unit
 ) {
     LaunchedEffect(oauthToken) { YandexDiskClient.init(oauthToken) }
-
     val scope = rememberCoroutineScope()
     var isLoading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
     var sentOk by remember { mutableStateOf(false) }
-
     val (rawStatus, rawComment, rawNewLink) = checkResult
     val isNlo = rawStatus == "nlo"
-
     val statusText = when (rawStatus) {
         "match" -> "Совпадает"
         "nlo" -> "НЛО"
@@ -44,17 +41,13 @@ fun ResultScreen(
         "mismatch" -> "Не совпадает"
         else -> rawStatus
     }
-
-    // упаковка и "в утиль" в виде строк "да"/"нет" (или пусто для НЛО)
     val strongPackagingText = if (isNlo) "" else if (strongPackaging) "да" else "нет"
     val toUtilText          = if (isNlo) "" else if (toUtil) "да" else "нет"
-
     val photosForUpload = if (isNlo) emptyList() else photos
     val qtyForSheet     = if (isNlo) 0 else quantity
     val defectsForSheet = if (isNlo) "" else if (defectResult.first) defectResult.second else ""
     val baseLinkForSheet= if (isNlo) "" else scanUrl
     val newLinkForSheet = if (isNlo) "" else rawNewLink
-
     Column(
         Modifier
             .fillMaxSize()
@@ -69,16 +62,13 @@ fun ResultScreen(
         if (!isNlo && rawComment.isNotBlank()) Text("Комментарий: $rawComment")
         Text("Количество: ${if (isNlo) 0 else qtyForSheet}")
         Text("Фото: ${photosForUpload.size} шт.")
-
         if (!isNlo) {
             Text("Дефект: ${if (defectResult.first) "Есть" else "Нет"}")
             if (defectsForSheet.isNotBlank()) Text("Описание дефекта: $defectsForSheet")
             Text("Усиленная упаковка: ${if (strongPackaging) "да" else "нет"}")
             Text("В утиль: ${if (toUtil) "да" else "нет"}")
         }
-
         Spacer(Modifier.weight(1f))
-
         if (isLoading) {
             CircularProgressIndicator()
         } else {
@@ -87,21 +77,17 @@ fun ResultScreen(
             } else {
                 if (sentOk) "Уже отправлено" else "Отправить на Яндекс.Диск"
             }
-
             Button(
                 onClick = {
                     scope.launch {
                         isLoading = true
                         message = ""
                         try {
-                            // Время от скана до отправки (как и было)
                             val nowMs = System.currentTimeMillis()
                             val durationSec = kotlin.math.max(
                                 0,
                                 (((nowMs - scanStartMs) / 1000.0)).toInt()
                             )
-
-                            // 1) Отправка на Я.Диск (если не НЛО)
                             var folderInfo: String? = null
                             val publicUrls: List<String> = if (!isNlo && photosForUpload.isNotEmpty()) {
                                 val meta = mapOf(
@@ -112,7 +98,7 @@ fun ResultScreen(
                                     "comment" to rawComment,
                                     "quantity" to qtyForSheet,
                                     "strongPackaging" to strongPackagingText,
-                                    "toUtil" to toUtilText, // НОВОЕ в метаданных
+                                    "toUtil" to toUtilText,
                                     "photosCount" to photosForUpload.size,
                                     "defect" to defectResult.first,
                                     "defectDescription" to defectsForSheet,
@@ -130,8 +116,6 @@ fun ResultScreen(
                             } else {
                                 emptyList()
                             }
-
-                            // 2) Формируем запрос в FastAPI (запись в PostgreSQL)
                             val req = AfterUploadRequest(
                                 user        = userFullName,
                                 barcode     = barcode,
@@ -143,18 +127,14 @@ fun ResultScreen(
                                 defects     = defectsForSheet,
                                 photos      = publicUrls,
                                 strongPackaging = strongPackagingText,
-                                toUtil      = toUtilText          // НОВОЕ поле
+                                toUtil      = toUtilText
                             )
-
-                            // 3) Замеряем время именно записи в таблицу
                             val t0 = System.currentTimeMillis()
                             GoogleSheetClient.saveAfterUpload(req)
                             val t1 = System.currentTimeMillis()
                             val writeMs = t1 - t0
                             val writeSec = writeMs / 1000.0
                             val writeInfo = "Время записи в таблицу: %.2f с".format(writeSec)
-
-                            // 4) Сообщение
                             message = if (isNlo) {
                                 "Сохранено в таблицу (НЛО)\n$writeInfo"
                             } else {
@@ -165,7 +145,6 @@ fun ResultScreen(
                                 }
                                 "$head\n$writeInfo"
                             }
-
                             sentOk = true
                         } catch (e: Exception) {
                             message = "Ошибка: ${e.localizedMessage}"
@@ -180,7 +159,6 @@ fun ResultScreen(
             ) {
                 Text(actionTitle)
             }
-
             if (sentOk) {
                 Spacer(Modifier.height(8.dp))
                 OutlinedButton(
@@ -191,7 +169,6 @@ fun ResultScreen(
                 }
             }
         }
-
         if (message.isNotBlank()) {
             Text(message, color = MaterialTheme.colors.primary)
         }
