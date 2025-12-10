@@ -32,7 +32,7 @@ object GoogleSheetClient {
     private lateinit var gasApi: GoogleSheetApi
 
     private var fastApiUrl: String = "http://158.160.87.160:8000/api"
-    private var gasUrl: String = "https://script.google.com/macros/s/AKfycbx3clnFV8gP8BKS0pkv5ysMfEe80YKfen2McX74HBKHIGQI2ECnyBsNZF8zRNqenPA/exec"         // ТВОЙ Apps Script exec URL
+    private var gasUrl: String = "https://script.google.com/macros/s/AKfycbwDnWWw3GS2C5cBX3u-G_7NEhFiZXSnhUX7LeysLgnq7ZJjmxiwhQrWjjMGlGdFOSQ/exec"
     private var apiKey: String = "SECRET_KEY"
 
     fun init(fastApiUrl: String, gasExecUrl: String, key: String) {
@@ -95,7 +95,7 @@ object GoogleSheetClient {
     suspend fun dailyStats(dateIso: String?, user: String?): DailyStatsResponse =
         fastApi.dailyStats(fastApiUrl, DailyStatsRequest(date = dateIso, user = user))
 
-    suspend fun lookupTrack(barcode: String, gid: Long = 400055422L) =
+    suspend fun lookupTrack(barcode: String, gid: Long = 522894316L) =
         gasApi.lookupTrack(gasUrl, apiKey, TrackLookupRequest(barcode = barcode, gid = gid))
 
     suspend fun returnLookup(dispatchNumber: String): ReturnLookupResponse =
@@ -122,14 +122,17 @@ object GoogleSheetClient {
 
     suspend fun returnIntake(
         trackNumber: String,
-        photoLinks: List<String>
+        photoLinks: List<String>,
+        comment: String? = null      // ← новый аргумент
     ): SimpleOkResponse {
         val body = ReturnIntakeRequest(
             trackNumber = trackNumber,
-            photos = photoLinks
+            photos = photoLinks,
+            comment = comment
         )
         return gasApi.returnIntake(gasUrl, apiKey, body)
     }
+
 
     suspend fun reconcileInit(): List<ReconcileItem> {
         val resp = gasApi.reconcileInit(gasUrl, apiKey, ReconcileInitRequest())

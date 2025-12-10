@@ -170,40 +170,53 @@ fun MainNavHost(
             )
         }
 
-
         /* ------------ ПРИЕМКА ВОЗВРАТОВ: ввод трек-номеров ------------ */
         composable("return_intake_tracks") {
             ReturnIntakeTracksScreen(
-                onNext = { trackNumber ->
-                    val encoded = Uri.encode(trackNumber)
-                    nav.navigate("return_intake_photos/$encoded")
+                onNextSingle = { trackNumber, comment ->
+                    val encodedTrack = Uri.encode(trackNumber)
+                    val encodedComment = Uri.encode(comment ?: "")
+                    nav.navigate("return_intake_photos/$encodedTrack?qty=1&comment=$encodedComment")
+                },
+                onNextMulti = { trackNumber, qty, comment ->
+                    val encodedTrack = Uri.encode(trackNumber)
+                    val encodedComment = Uri.encode(comment ?: "")
+                    nav.navigate("return_intake_photos/$encodedTrack?qty=$qty&comment=$encodedComment")
                 },
                 onBack = { nav.popBackStack() }
             )
         }
 
-        /* ------------ ПРИЕМКА ВОЗВРАТОВ: фото + отправка ------------ */
+
         composable(
-            route = "return_intake_photos/{trackNumber}",
-            arguments = listOf(navArgument("trackNumber") { type = NavType.StringType })
+            route = "return_intake_photos/{trackNumber}?qty={qty}&comment={comment}",
+            arguments = listOf(
+                navArgument("trackNumber") { type = NavType.StringType },
+                navArgument("qty") { type = NavType.IntType; defaultValue = 1 },
+                navArgument("comment") { type = NavType.StringType; defaultValue = "" }
+            )
         ) { backStackEntry ->
             val trackNumber = backStackEntry.arguments?.getString("trackNumber") ?: ""
+            val qty = backStackEntry.arguments?.getInt("qty") ?: 1
+            val comment = backStackEntry.arguments?.getString("comment")?.takeIf { it.isNotEmpty() }
 
             ReturnIntakePhotosScreen(
                 trackNumber = trackNumber,
                 oauthToken = oauthToken,
+                itemCount = qty,
+                comment = comment,
                 onFinished = {
-                    val popped = nav.popBackStack("home", false)
+                    val popped = nav.popBackStack("returns_home", false)
                     if (!popped) {
-                        nav.navigate("home") {
-                            popUpTo(nav.graph.startDestinationId) { inclusive = false }
+                        nav.navigate("returns_home") {
                             launchSingleTop = true
-                            restoreState = true
                         }
                     }
                 }
             )
         }
+
+
 
         composable("return_process") {
             ReturnProcessScreen(nav)
@@ -333,12 +346,34 @@ fun MainNavHost(
             }
         }
 
-        // НОВЫЙ РОУТ ПЕЧАТИ ШК
+        /* ------------ ПЕЧАТЬ ШК: ШАГ 1 — СКАН / ВВОД ------------ */
         composable("print_barcode") {
+            ScanScreen(
+                instanceKey = "print_barcode",
+                allowManualInput = true,
+                inputHint = "Введите/отсканируйте ШК",
+                torchOn = torchOn
+            ) { code ->
+                val arg = Uri.encode(code)
+                nav.navigate("print_barcode_form?code=$arg")
+            }
+        }
+
+        /* ------------ ПЕЧАТЬ ШК: ШАГ 2 — ЭКРАН ПЕЧАТИ ------------ */
+        composable(
+            route = "print_barcode_form?code={code}",
+            arguments = listOf(
+                navArgument("code") { type = NavType.StringType; defaultValue = "" }
+            )
+        ) { backStackEntry ->
+            val code = backStackEntry.arguments?.getString("code").orEmpty()
+
             PrintBarcodeScreen(
-                onBack = { nav.popBackStack() }    // ← ТУТ ДОЛЖЕН БЫТЬ nav, а не navController
+                initialBarcode = code,
+                onBack = { nav.popBackStack() }
             )
         }
+
 
         composable(
             route = "check?allowMatch={allowMatch}",

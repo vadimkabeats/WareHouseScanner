@@ -106,7 +106,10 @@ object YandexDiskClient {
     }
 
     suspend fun ensureFolder(path: String) {
-        try { api.createFolder(authHeader, path) } catch (_: Exception) { }
+        try {
+            api.createFolder(authHeader, path)
+        } catch (_: Exception) {
+        }
     }
 
     private suspend fun uploadBytes(path: String, bytes: ByteArray) {
@@ -176,12 +179,20 @@ object YandexDiskClient {
         context: Context,
         barcode: String,
         metadata: Any,
-        photos: List<Uri>
+        photos: List<Uri>,
+        itemIndex: Int? = null
     ): YDUploadResult {
         val folder = ensureReturnItemFolder(barcode)
 
+        // Имя JSON зависит от номера товара
+        val jsonName = if (itemIndex != null) {
+            "metadata_return_item${itemIndex}.json"
+        } else {
+            "metadata_return.json"
+        }
+
         val json = Gson().toJson(metadata).toByteArray(Charsets.UTF_8)
-        uploadBytes("$folder/metadata_return.json", json)
+        uploadBytes("$folder/$jsonName", json)
 
         val publicLinks = coroutineScope {
             photos.mapIndexed { i, uri ->
@@ -189,7 +200,12 @@ object YandexDiskClient {
                     val bytes = loadAndCompressJpeg(context, uri)
                     if (bytes.isEmpty()) return@async null
 
-                    val photoName = "${barcode}_${i + 1}.jpg"
+                    // Имя фото содержит номер товара и номер фото
+                    val photoName = if (itemIndex != null) {
+                        "${barcode}_item${itemIndex}_${i + 1}.jpg"
+                    } else {
+                        "${barcode}_${i + 1}.jpg"
+                    }
                     val path = "$folder/$photoName"
 
                     uploadBytes(path, bytes)

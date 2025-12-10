@@ -11,7 +11,8 @@ import kotlinx.coroutines.launch
 data class ReturnProcessUiItem(
     val barcode: String,
     val title: String,
-    val action: String
+    val action: String,
+    val comment: String
 )
 
 data class ReturnProcessUiState(
@@ -51,7 +52,8 @@ class ReturnProcessViewModel : ViewModel() {
                     ReturnProcessUiItem(
                         barcode = it.barcode,
                         title = it.title.orEmpty(),
-                        action = it.action.orEmpty()
+                        action = it.action.orEmpty(),
+                        comment = it.comment.orEmpty()
                     )
                 }
 

@@ -16,9 +16,9 @@ import androidx.compose.ui.Modifier
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val oauthToken = "y0__xDG6vflBRituTkgq5zagxS2sGCCdf2L4JbOmOIMoeBfsnOKTw"
+        val oauthToken = "y0__xDC-PqfqveAAhiItjgguIj3xRMa5L1mPbJOCrNGULQHPk3yPF52zA"
         val fastApiUrl = "http://158.160.87.160:8000/api"
-        val gasExecUrl = "https://script.google.com/macros/s/AKfycbxArPbwb-0djK9RRRAV-HkHBhoh_bB2dn9m06IlJxRJNde8AkyTPT6Cdy1DZiiU9g/exec"
+        val gasExecUrl = "https://script.google.com/macros/s/AKfycbwDnWWw3GS2C5cBX3u-G_7NEhFiZXSnhUX7LeysLgnq7ZJjmxiwhQrWjjMGlGdFOSQ/exec"
         val apiKey = "SECRET_KEY"
         GoogleSheetClient.init(
             fastApiUrl = fastApiUrl,

@@ -9,6 +9,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -20,12 +21,13 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun PrintBarcodeScreen(
+    initialBarcode: String = "",
     onBack: () -> Unit
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var barcode by remember { mutableStateOf("") }
+    var barcode by rememberSaveable { mutableStateOf(initialBarcode) }
     var printer by remember { mutableStateOf(LabelPrinter.restoreLastPrinter(ctx)) }
     var showPicker by remember { mutableStateOf(printer == null) }
     var isPrinting by remember { mutableStateOf(false) }

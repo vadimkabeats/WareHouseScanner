@@ -24,7 +24,7 @@ data class AfterUploadRequest(
 data class TrackLookupRequest(
     val mode: String = "track",
     val barcode: String,
-    val gid: Long = 400055422L
+    val gid: Long = 522894316L
 )
 
 data class TrackLookupResponse(
@@ -43,7 +43,8 @@ data class TrackLookupResponse(
 data class ReturnIntakeRequest(
     val mode: String = "returnIntake",
     val trackNumber: String,
-    val photos: List<String>
+    val photos: List<String>,
+    val comment: String? = null
 )
 
 data class SimpleOkResponse(
@@ -102,7 +103,8 @@ data class ReturnProcessLookupRequest(
 data class ReturnProcessItemDto(
     val barcode: String,
     val title: String?,
-    val action: String?
+    val action: String?,
+    val comment: String?
 )
 
 data class ReturnProcessLookupResponse(

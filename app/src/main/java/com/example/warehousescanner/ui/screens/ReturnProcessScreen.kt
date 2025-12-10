@@ -118,6 +118,15 @@ fun ReturnProcessScreen(
                                         style = MaterialTheme.typography.body2
                                     )
                                 }
+                                // НОВОЕ: комментарий
+                                val comment = item.comment ?: ""
+                                if (comment.isNotBlank()) {
+                                    Text(
+                                        "Комментарий: $comment",
+                                        style = MaterialTheme.typography.body2
+                                    )
+                                }
+
                                 Spacer(Modifier.height(8.dp))
                                 Button(
                                     onClick = {
@@ -151,7 +160,9 @@ fun ReturnProcessScreen(
                         }
                     }
                 }
+
                 Spacer(Modifier.height(12.dp))
+
                 Button(
                     onClick = { viewModel.markProcessed() },
                     modifier = Modifier.fillMaxWidth(),
@@ -166,12 +177,30 @@ fun ReturnProcessScreen(
                     }
                     Text("Обработано")
                 }
+
                 if (state.processed) {
                     Text(
                         text = "Отмечено как обработано",
                         color = MaterialTheme.colors.primary,
                         modifier = Modifier.padding(top = 8.dp)
                     )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Button(
+                        onClick = {
+                            // Возврат в меню возвратов (экран выбора сценария)
+                            val popped = navController.popBackStack("returns_home", false)
+                            if (!popped) {
+                                navController.navigate("returns_home") {
+                                    launchSingleTop = true
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("В меню возвратов")
+                    }
                 }
             } else {
                 if (!state.isLoading && state.track.isNotBlank() && state.error == null) {
