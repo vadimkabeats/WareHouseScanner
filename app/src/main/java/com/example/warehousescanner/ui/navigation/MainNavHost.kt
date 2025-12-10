@@ -41,7 +41,6 @@ fun MainNavHost(
 
     NavHost(navController = nav, startDestination = "login") {
 
-        /* ------------ ЛОГИН ------------ */
         composable("login") {
             var err by remember { mutableStateOf<String?>(null) }
             var loading by remember { mutableStateOf(false) }
@@ -79,25 +78,17 @@ fun MainNavHost(
             val activity = LocalContext.current as ComponentActivity
             val userVm: UserViewModel = viewModel(activity)
             val settingsVm: SettingsViewModel = viewModel(activity)
-
             val fullName by userVm.fullName.collectAsState()
             val torchOn by settingsVm.torchEnabled.collectAsState()
-
-            // --- статистика за сегодня
             val statsVm: StatsViewModel = viewModel(activity)
             val statsLoading by statsVm.loading.collectAsState()
             val statsNlo by statsVm.nlo.collectAsState()
             val statsNonNlo by statsVm.nonNlo.collectAsState()
-
-            // персональная статистика
             val statsIdentified by statsVm.identified.collectAsState()
             val statsPutAway by statsVm.putAway.collectAsState()
             val statsLost by statsVm.lost.collectAsState()
-
-            // СУММАРНАЯ статистика по складу
             val totalIdentified by statsVm.totalIdentified.collectAsState()
             val totalPutAway by statsVm.totalPutAway.collectAsState()
-
             val lostVm: LostItemsViewModel = viewModel(activity)
             val lostItems by lostVm.items.collectAsState()
             val lostItemsLoading by lostVm.loading.collectAsState()
@@ -113,12 +104,10 @@ fun MainNavHost(
                     onDismiss = { lostDialogVisible = false }
                 )
             }
-            // первая загрузка
             LaunchedEffect(fullName) {
                 statsVm.loadFor(fullName)
             }
 
-            // перезагрузка при возврате на экран
             val lifecycleOwner = LocalLifecycleOwner.current
             DisposableEffect(lifecycleOwner, fullName) {
                 val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
@@ -133,44 +122,31 @@ fun MainNavHost(
                 onAddItem = { nav.navigate("scan") },
                 onPutAway = { nav.navigate("put_scan_item") },
                 onPrintLabel = { nav.navigate("print_scan") },
-                onPrintBarcode = { nav.navigate("print_barcode") }, // ← НОВЫЙ КОЛЛБЕК
+                onPrintBarcode = { nav.navigate("print_barcode") },
                 onReceiveReturn = { nav.navigate("returns_home") },
                 onReconcile = { nav.navigate("reconcile_home") },
-
-                // 1-я карточка (НЛО)
                 statsNonNlo = statsNonNlo,
                 statsNlo = statsNlo,
                 statsLoading = statsLoading,
-
-                // 2-я карточка (по конкретному работнику — «ты»)
                 statsIdentified = statsIdentified,
                 statsPutAway = statsPutAway,
                 statsLost = statsLost,
-
-                // 3-я карточка — суммарная по складу
                 totalIdentified = totalIdentified,
                 totalPutAway = totalPutAway,
-
-                // клик по "НЕ дошло до полки"
                 onShowLostDetails = {
                     lostDialogVisible = true
                     lostVm.load(fullName)
                 },
-
-                // фонарик
                 torchOn = torchOn,
                 onToggleTorch = { settingsVm.setTorchEnabled(it) }
             )
         }
-        /* ------------ ВОЗВРАТЫ: домашний экран ------------ */
         composable("returns_home") {
             ReturnsHomeScreen(
                 onIntakeClick = { nav.navigate("return_intake_tracks") },
-                onProcessClick = { nav.navigate("return_process") }    // ← вот сюда уходим
+                onProcessClick = { nav.navigate("return_process") }
             )
         }
-
-        /* ------------ ПРИЕМКА ВОЗВРАТОВ: ввод трек-номеров ------------ */
         composable("return_intake_tracks") {
             ReturnIntakeTracksScreen(
                 onNextSingle = { trackNumber, comment ->
@@ -186,8 +162,6 @@ fun MainNavHost(
                 onBack = { nav.popBackStack() }
             )
         }
-
-
         composable(
             route = "return_intake_photos/{trackNumber}?qty={qty}&comment={comment}",
             arguments = listOf(
@@ -216,15 +190,10 @@ fun MainNavHost(
             )
         }
 
-
-
         composable("return_process") {
             ReturnProcessScreen(nav)
         }
 
-
-
-        /* ------------ ДОБАВИТЬ ТОВАР ------------ */
         composable("scan") {
             ScanScreen(
                 instanceKey = "add_item",
@@ -249,7 +218,6 @@ fun MainNavHost(
             val barcode by session.barcode.collectAsState()
             val linkState by gsVm.linkState.collectAsState()
             val scope = rememberCoroutineScope()
-
             var checking by remember(barcode) { mutableStateOf(true) }
             var askOverwrite by remember(barcode) { mutableStateOf(false) }
             var checkError by remember(barcode) { mutableStateOf<String?>(null) }
@@ -346,7 +314,6 @@ fun MainNavHost(
             }
         }
 
-        /* ------------ ПЕЧАТЬ ШК: ШАГ 1 — СКАН / ВВОД ------------ */
         composable("print_barcode") {
             ScanScreen(
                 instanceKey = "print_barcode",
@@ -358,8 +325,6 @@ fun MainNavHost(
                 nav.navigate("print_barcode_form?code=$arg")
             }
         }
-
-        /* ------------ ПЕЧАТЬ ШК: ШАГ 2 — ЭКРАН ПЕЧАТИ ------------ */
         composable(
             route = "print_barcode_form?code={code}",
             arguments = listOf(
@@ -373,8 +338,6 @@ fun MainNavHost(
                 onBack = { nav.popBackStack() }
             )
         }
-
-
         composable(
             route = "check?allowMatch={allowMatch}",
             arguments = listOf(navArgument("allowMatch"){ type = NavType.BoolType; defaultValue = true })
@@ -396,25 +359,21 @@ fun MainNavHost(
                 }
             }
         }
-
         composable("photo") {
             PhotoScreen { picked ->
                 session.setPhotos(picked)
                 nav.navigate("defect")
             }
         }
-
         composable("defect") {
             DefectScreen { hasDefect, desc, qty, strongPackaging, toUtil ->
                 session.setDefect(hasDefect, desc)
                 session.setQuantity(qty)
                 session.setStrongPackaging(strongPackaging)
-                session.setToUtil(toUtil)           // ← сохраняем флаг "В утиль"
+                session.setToUtil(toUtil)
                 nav.navigate("result")
             }
         }
-
-
         composable("result") {
             val barcode by session.barcode.collectAsState()
             val scanUrl by session.url.collectAsState()
@@ -428,7 +387,6 @@ fun MainNavHost(
             val scanStartMs by session.scanStartMs.collectAsState()
             val strongPackaging by session.strongPackaging.collectAsState()
             val toUtil by session.toUtil.collectAsState()
-
             fun goHomeSafe() {
                 val popped = nav.popBackStack("home", false)
                 if (!popped) {
@@ -439,7 +397,6 @@ fun MainNavHost(
                     }
                 }
             }
-
             ResultScreen(
                 context = LocalContext.current,
                 barcode = barcode,
@@ -456,8 +413,6 @@ fun MainNavHost(
                 onBackHome = { goHomeSafe() }
             )
         }
-
-        /* ------------ ПОЛОЖИТЬ ТОВАР ------------ */
         composable("put_scan_item") {
             ScanScreen(
                 instanceKey = "put_item",
@@ -470,7 +425,6 @@ fun MainNavHost(
                 }
             }
         }
-
         composable(
             route = "put_scan_cell?item={item}&start={start}",
             arguments = listOf(
@@ -496,7 +450,6 @@ fun MainNavHost(
                 nav.navigate("put_done?item=$itemArg&cell=$cellArg&start=$start")
             }
         }
-
         composable(
             route = "put_done?item={item}&cell={cell}&start={start}",
             arguments = listOf(
@@ -508,15 +461,12 @@ fun MainNavHost(
             val item  = backStackEntry.arguments?.getString("item").orEmpty()
             val cell  = backStackEntry.arguments?.getString("cell").orEmpty()
             val start = backStackEntry.arguments?.getLong("start") ?: 0L
-
             var loading by remember { mutableStateOf(true) }
             var msg by remember { mutableStateOf("") }
-
             LaunchedEffect(item, cell, start, fullName) {
                 val now = System.currentTimeMillis()
                 val durationSec = (((now - start).coerceAtLeast(0L)) / 1000L).toInt()
                 val userFio = fullName
-
                 runCatching {
                     GoogleSheetClient.putAway(item, cell, durationSec, userFio)
                 }.onSuccess { res ->
@@ -530,7 +480,6 @@ fun MainNavHost(
                 }
                 loading = false
             }
-
             PutDoneScreen(
                 isLoading = loading,
                 message = msg,
@@ -546,8 +495,6 @@ fun MainNavHost(
                 }
             )
         }
-
-        /* ------------ ПЕЧАТЬ ЭТИКЕТКИ (обычная) ------------ */
         composable("print_scan") {
             LaunchedEffect(Unit) { gsVm.resetTrack() }
             ScanScreen(
@@ -558,7 +505,6 @@ fun MainNavHost(
                 nav.navigate("print_preview?code=$arg")
             }
         }
-
         composable(
             route = "print_preview?code={code}",
             arguments = listOf(navArgument("code") { type = NavType.StringType; defaultValue = "" })
@@ -569,9 +515,6 @@ fun MainNavHost(
                 onBack = { nav.popBackStack() }
             )
         }
-
-        /* ------------ ПРИНЯТЬ ВОЗВРАТ (ОБНОВЛЁН) ------------ */
-
         composable("return_scan") {
             val returnVm: ReturnViewModel = viewModel(activity)
             ScanScreen(
@@ -579,7 +522,7 @@ fun MainNavHost(
                 allowManualInput = true,
                 inputHint = "Введите/отсканируйте Dispatch №",
                 torchOn = torchOn,
-                manualAllowSpaces = true          // ← ДОБАВИЛИ: разрешаем пробелы в ручном вводе
+                manualAllowSpaces = true
             ) { dispatch ->
                 returnVm.reset()
                 returnVm.setDispatchNumber(dispatch)
@@ -587,20 +530,15 @@ fun MainNavHost(
                 nav.navigate("return_resolve?dispatch=$arg")
             }
         }
-
-        // 1a) Резолвим ВСЕ товары по dispatchNumber
         composable(
             route = "return_resolve?dispatch={dispatch}",
             arguments = listOf(navArgument("dispatch"){ defaultValue = "" })
         ) { backStackEntry ->
             val returnVm: ReturnViewModel = viewModel(activity)
             val dispatch = backStackEntry.arguments?.getString("dispatch").orEmpty()
-
             val items by returnVm.items.collectAsState()
-
             var state by remember { mutableStateOf("loading") } // loading / single / multi / error
             var err by remember { mutableStateOf<String?>(null) }
-
             LaunchedEffect(dispatch) {
                 state = "loading"
                 err = null
@@ -620,7 +558,6 @@ fun MainNavHost(
                                 )
                                 else -> emptyList()
                             }
-
                             if (list.isEmpty()) {
                                 err = "Не найдено в листе «Возвраты»"
                                 state = "error"
@@ -644,7 +581,6 @@ fun MainNavHost(
                         state = "error"
                     }
             }
-
             when (state) {
                 "loading" -> Box(Modifier.fillMaxSize()) {
                     CircularProgressIndicator(Modifier.align(Alignment.Center))
@@ -663,7 +599,6 @@ fun MainNavHost(
                         onBack = { nav.popBackStack() }
                     )
                 }
-
                 "single" -> {
                     LaunchedEffect(Unit) {
                         nav.navigate("return_condition") {
@@ -671,7 +606,6 @@ fun MainNavHost(
                         }
                     }
                 }
-
                 else -> {
                     Column(
                         Modifier
@@ -688,8 +622,6 @@ fun MainNavHost(
             }
         }
 
-
-        // 2) Состояние, фото + ВЫБОР ДЕЙСТВИЯ (НОВОЕ)
         composable("return_condition") {
             val returnVm: ReturnViewModel = viewModel(activity)
             val dispatch by returnVm.dispatchNumber.collectAsState()
@@ -699,7 +631,7 @@ fun MainNavHost(
             val hasDefect by returnVm.hasDefect.collectAsState()
             val defectDesc by returnVm.defectDesc.collectAsState()
             val photos by returnVm.photos.collectAsState()
-            val decision by returnVm.decision.collectAsState()   // ← НОВОЕ (decision)
+            val decision by returnVm.decision.collectAsState()
 
             ReturnConditionScreen(
                 dispatchNumber = dispatch,
@@ -709,12 +641,12 @@ fun MainNavHost(
                 hasDefectInit = hasDefect,
                 defectDescInit = defectDesc,
                 photosCount = photos.size,
-                decisionInit = decision,                           // ← НОВОЕ
+                decisionInit = decision,
                 onChangeState = { has, desc ->
                     returnVm.setDefect(has, desc)
                     if (!has) returnVm.setPhotos(emptyList())
                 },
-                onSelectDecision = { returnVm.setDecision(it) },   // ← НОВОЕ
+                onSelectDecision = { returnVm.setDecision(it) },
                 onOpenPhotos = { if (hasDefect) nav.navigate("return_photos") },
                 onNext = {
                     if (hasDefect && photos.isEmpty()) return@ReturnConditionScreen
@@ -723,9 +655,6 @@ fun MainNavHost(
                 onBack = { nav.popBackStack() }
             )
         }
-
-
-        // 2a) Фото — защита от прямого попадания без дефекта
         composable("return_photos") {
             val returnVm: ReturnViewModel = viewModel(activity)
             val hasDefect by returnVm.hasDefect.collectAsState()
@@ -737,8 +666,6 @@ fun MainNavHost(
                 nav.popBackStack()
             }
         }
-
-        // 2b) Отправка в Диск + запись в таблицу
         composable("return_result") {
             val returnVm: ReturnViewModel = viewModel(activity)
             val dispatch by returnVm.dispatchNumber.collectAsState()
@@ -746,8 +673,7 @@ fun MainNavHost(
             val hasDefect by returnVm.hasDefect.collectAsState()
             val defectDesc by returnVm.defectDesc.collectAsState()
             val photos by returnVm.photos.collectAsState()
-            val decision by returnVm.decision.collectAsState()   // ← НОВОЕ
-
+            val decision by returnVm.decision.collectAsState()
             ReturnResultScreen(
                 context = LocalContext.current,
                 dispatchNumber = dispatch,
@@ -757,7 +683,7 @@ fun MainNavHost(
                 photos = photos,
                 userFullName = fullName,
                 oauthToken = oauthToken,
-                decision = decision,                              // ← НОВОЕ
+                decision = decision,
                 onNextToPrint = { nav.navigate("return_print") },
                 onBackHome = {
                     val popped = nav.popBackStack("home", false)
@@ -771,9 +697,6 @@ fun MainNavHost(
                 }
             )
         }
-
-
-        // 3) Печать (показываем dispatch+barcode, печатаем barcode)
         composable("return_print") {
             val returnVm: ReturnViewModel = viewModel(activity)
             val dispatch by returnVm.dispatchNumber.collectAsState()
@@ -781,7 +704,6 @@ fun MainNavHost(
             val hasDefect by returnVm.hasDefect.collectAsState()
             val defectDesc by returnVm.defectDesc.collectAsState()
             val photos by returnVm.photos.collectAsState()
-
             ReturnPrintScreen(
                 dispatchNumber = dispatch,
                 barcodeToPrint = barcodeToPrint,
@@ -801,17 +723,13 @@ fun MainNavHost(
                 }
             )
         }
-
-        /* ------------ СВЕРКА С КУРЬЕРОМ (НОВОЕ) ------------ */
         composable("reconcile_home") {
             val rvm: ReconcileViewModel = viewModel(activity)
             val loading by rvm.loading.collectAsState()
             val error by rvm.error.collectAsState()
             val expected by rvm.expected.collectAsState()
             val scanned by rvm.scanned.collectAsState()
-
             LaunchedEffect(Unit) { rvm.load() }
-
             ReconcileHomeScreen(
                 isLoading = loading,
                 error = error,
@@ -823,7 +741,6 @@ fun MainNavHost(
                 onReload = { rvm.load() }
             )
         }
-
         composable("reconcile_browse") {
             val rvm: ReconcileViewModel = viewModel(activity)
             val items by rvm.expected.collectAsState()
@@ -832,7 +749,6 @@ fun MainNavHost(
                 onBack = { nav.popBackStack() }
             )
         }
-
         composable("reconcile_scan") {
             val rvm: ReconcileViewModel = viewModel(activity)
             ReconcileScanScreen(
@@ -842,7 +758,6 @@ fun MainNavHost(
                 onFinish = { nav.navigate("reconcile_done") }
             )
         }
-
         composable("id_print") {
             val barcode by session.barcode.collectAsState()
 
@@ -853,7 +768,6 @@ fun MainNavHost(
                 onBack = { nav.popBackStack() }
             )
         }
-
         composable(
             route = "reconcile_done?tab={tab}",
             arguments = listOf(navArgument("tab"){ defaultValue = "" })
@@ -866,7 +780,6 @@ fun MainNavHost(
             val notPassed = remember(rvm.scanned.collectAsState().value, rvm.expected.collectAsState().value) {
                 rvm.notPassedScanned()
             }
-
             ReconcileDoneScreen(
                 passed = passed,
                 notPassed = notPassed,

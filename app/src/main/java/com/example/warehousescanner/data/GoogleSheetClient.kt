@@ -123,7 +123,7 @@ object GoogleSheetClient {
     suspend fun returnIntake(
         trackNumber: String,
         photoLinks: List<String>,
-        comment: String? = null      // ← новый аргумент
+        comment: String? = null
     ): SimpleOkResponse {
         val body = ReturnIntakeRequest(
             trackNumber = trackNumber,

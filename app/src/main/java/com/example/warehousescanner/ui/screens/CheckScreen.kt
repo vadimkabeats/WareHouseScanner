@@ -17,7 +17,6 @@ fun CheckScreen(
     onAction: (status: String, comment: String, newLink: String) -> Unit
 ) {
     val uriHandler = LocalUriHandler.current
-
     var status by remember { mutableStateOf<String?>(null) }
     var mismatchType by remember { mutableStateOf<String?>(null) }
     var comment by remember { mutableStateOf("") }

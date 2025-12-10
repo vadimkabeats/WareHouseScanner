@@ -140,18 +140,10 @@ object LabelPrinter {
         }
         return sb.toString()
     }
-
     private fun sendRaw(out: OutputStream, data: ByteArray) {
         out.write(data)
         out.flush()
     }
-
-    suspend fun printTsplFixedSmall(
-        context: Context,
-        device: BluetoothDevice,
-        text: String
-    ) = printTsplFixedSmall(context, device, barcodeText = text, captionText = text)
-
     suspend fun printTsplFixedSmall(
         context: Context,
         device: BluetoothDevice,

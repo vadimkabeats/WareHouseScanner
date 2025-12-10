@@ -184,7 +184,6 @@ object YandexDiskClient {
     ): YDUploadResult {
         val folder = ensureReturnItemFolder(barcode)
 
-        // Имя JSON зависит от номера товара
         val jsonName = if (itemIndex != null) {
             "metadata_return_item${itemIndex}.json"
         } else {
@@ -200,7 +199,6 @@ object YandexDiskClient {
                     val bytes = loadAndCompressJpeg(context, uri)
                     if (bytes.isEmpty()) return@async null
 
-                    // Имя фото содержит номер товара и номер фото
                     val photoName = if (itemIndex != null) {
                         "${barcode}_item${itemIndex}_${i + 1}.jpg"
                     } else {
