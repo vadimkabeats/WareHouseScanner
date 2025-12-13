@@ -58,7 +58,6 @@ fun ReturnIntakeTracksScreen(
     var multiTrack2 by remember { mutableStateOf("") }
     var multiTrack3 by remember { mutableStateOf("") }
     var multiQtyText by remember { mutableStateOf("") }
-    var commentText by remember { mutableStateOf("") }
 
     fun joinedTracks(list: List<String>): String =
         list.map { it.trim() }
@@ -168,20 +167,12 @@ fun ReturnIntakeTracksScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
             }
-            OutlinedTextField(
-                value = commentText,
-                onValueChange = { commentText = it },
-                label = { Text("Комментарий (необязательно)") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = false,
-                maxLines = 3
-            )
 
             Spacer(modifier = Modifier.weight(1f))
 
             Button(
                 onClick = {
-                    val comment = commentText.trim().ifEmpty { null }
+                    val comment: String? = null  // комментарий теперь на экране фоток
 
                     if (isMulti) {
                         val qty = multiQtyText.toIntOrNull() ?: return@Button
@@ -212,7 +203,7 @@ fun ReturnIntakePhotosScreen(
     trackNumber: String,
     oauthToken: String,
     itemCount: Int,
-    comment: String?,          // ← комментарий приходит из экрана треков
+    comment: String?,         // сюда пока прилетает "", мы его используем как initial
     onFinished: () -> Unit
 ) {
     val context = LocalContext.current
@@ -224,52 +215,69 @@ fun ReturnIntakePhotosScreen(
     var currentIndex by remember { mutableStateOf(1) }
     var success by remember { mutableStateOf(false) }
 
+    // 📝 комментарий для приёмки — редактируется на экране с фотками
+    var commentText by remember { mutableStateOf(comment.orEmpty()) }
+
     Box(Modifier.fillMaxSize()) {
         if (!success) {
             key(currentIndex) {
-                PhotoScreen { uris: List<Uri> ->
-                    if (uris.isEmpty() || sending) return@PhotoScreen
+                PhotoScreen(
+                    extraContentBelowPhotos = {
+                        OutlinedTextField(
+                            value = commentText,
+                            onValueChange = { commentText = it },
+                            label = { Text("Комментарий (необязательно)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = false,
+                            maxLines = 3
+                        )
+                    },
+                    onNext = { uris: List<Uri> ->
+                        if (uris.isEmpty() || sending) return@PhotoScreen
 
-                    scope.launch {
-                        sending = true
-                        error = null
-                        try {
-                            YandexDiskClient.init(oauthToken)
-                            val uploadResult = YandexDiskClient.uploadReturnBundleJson(
-                                context = context,
-                                barcode = trackNumber.replace("/", "_"),
-                                metadata = mapOf(
-                                    "trackNumber" to trackNumber,
-                                    "createdAt" to System.currentTimeMillis(),
-                                    "itemIndex" to currentIndex,
-                                    "itemCount" to itemCount
-                                ),
-                                photos = uris,
-                                itemIndex = if (itemCount > 1) currentIndex else null
-                            )
-                            val links = uploadResult.publicPhotoUrls
+                        scope.launch {
+                            sending = true
+                            error = null
+                            try {
+                                YandexDiskClient.init(oauthToken)
+                                val uploadResult = YandexDiskClient.uploadReturnBundleJson(
+                                    context = context,
+                                    barcode = trackNumber.replace("/", "_"),
+                                    metadata = mapOf(
+                                        "trackNumber" to trackNumber,
+                                        "createdAt" to System.currentTimeMillis(),
+                                        "itemIndex" to currentIndex,
+                                        "itemCount" to itemCount
+                                    ),
+                                    photos = uris,
+                                    itemIndex = if (itemCount > 1) currentIndex else null
+                                )
+                                val links = uploadResult.publicPhotoUrls
 
-                            val resp = GoogleSheetClient.returnIntake(
-                                trackNumber = trackNumber,
-                                photoLinks = links,
-                                comment = comment?.trim()?.ifEmpty { null }  // ← комментарий из первого экрана
-                            )
-                            if (!resp.ok) {
-                                throw RuntimeException(resp.error ?: "Ошибка записи в таблицу")
+                                val resp = GoogleSheetClient.returnIntake(
+                                    trackNumber = trackNumber,
+                                    photoLinks = links,
+                                    // 👇 берём комментарий уже с этого экрана,
+                                    // а не из экрана треков
+                                    comment = commentText.trim().ifEmpty { null }
+                                )
+                                if (!resp.ok) {
+                                    throw RuntimeException(resp.error ?: "Ошибка записи в таблицу")
+                                }
+
+                                if (itemCount > 1 && currentIndex < itemCount) {
+                                    currentIndex += 1
+                                } else {
+                                    success = true
+                                }
+                            } catch (t: Throwable) {
+                                error = t.message ?: "Ошибка отправки"
+                            } finally {
+                                sending = false
                             }
-
-                            if (itemCount > 1 && currentIndex < itemCount) {
-                                currentIndex += 1
-                            } else {
-                                success = true
-                            }
-                        } catch (t: Throwable) {
-                            error = t.message ?: "Ошибка отправки"
-                        } finally {
-                            sending = false
                         }
                     }
-                }
+                )
             }
         }
 
@@ -280,7 +288,7 @@ fun ReturnIntakePhotosScreen(
                     .fillMaxWidth()
                     .align(Alignment.TopCenter)
                     .padding(
-                        top = 40.dp,    // опущен вниз, чтобы не налезать на "Фотографии"
+                        top = 40.dp,
                         start = 16.dp,
                         end = 16.dp
                     )
@@ -322,7 +330,7 @@ fun ReturnIntakePhotosScreen(
             }
         }
 
-        // Успешное завершение: сообщение + кнопка "В меню возвратов"
+        // Успешное завершение
         if (success && !sending) {
             Box(
                 modifier = Modifier
@@ -352,5 +360,3 @@ fun ReturnIntakePhotosScreen(
         }
     }
 }
-
-

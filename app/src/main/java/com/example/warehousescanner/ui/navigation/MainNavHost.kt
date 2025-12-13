@@ -360,10 +360,12 @@ fun MainNavHost(
             }
         }
         composable("photo") {
-            PhotoScreen { picked ->
-                session.setPhotos(picked)
-                nav.navigate("defect")
-            }
+            PhotoScreen(
+                onNext = { picked ->
+                    session.setPhotos(picked)
+                    nav.navigate("defect")
+                }
+            )
         }
         composable("defect") {
             DefectScreen { hasDefect, desc, qty, strongPackaging, toUtil ->
@@ -661,10 +663,12 @@ fun MainNavHost(
             LaunchedEffect(hasDefect) {
                 if (!hasDefect) nav.popBackStack()
             }
-            PhotoScreen { picked ->
-                returnVm.setPhotos(picked)
-                nav.popBackStack()
-            }
+            PhotoScreen(
+                onNext = { picked ->
+                    returnVm.setPhotos(picked)
+                    nav.popBackStack()
+                }
+            )
         }
         composable("return_result") {
             val returnVm: ReturnViewModel = viewModel(activity)

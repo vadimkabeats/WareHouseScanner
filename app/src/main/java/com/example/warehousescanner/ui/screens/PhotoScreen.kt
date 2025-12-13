@@ -35,7 +35,10 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
-fun PhotoScreen(onNext: (List<Uri>) -> Unit) {
+fun PhotoScreen(
+    extraContentBelowPhotos: @Composable (() -> Unit)? = null,
+    onNext: (List<Uri>) -> Unit
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     val photos = remember { mutableStateListOf<Uri>() }
@@ -118,14 +121,20 @@ fun PhotoScreen(onNext: (List<Uri>) -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Фотографии", style = MaterialTheme.typography.h6)
-                Text("${photos.size}/6", style = MaterialTheme.typography.body2, color = MaterialTheme.colors.primary)
+                Text(
+                    "${photos.size}/6",
+                    style = MaterialTheme.typography.body2,
+                    color = MaterialTheme.colors.primary
+                )
             }
 
             Spacer(Modifier.height(12.dp))
 
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
-                modifier = Modifier.weight(1f).fillMaxWidth(),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -139,7 +148,11 @@ fun PhotoScreen(onNext: (List<Uri>) -> Unit) {
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Default.Add, contentDescription = null)
-                            Text("Добавить", textAlign = TextAlign.Center, style = MaterialTheme.typography.caption)
+                            Text(
+                                "Добавить",
+                                textAlign = TextAlign.Center,
+                                style = MaterialTheme.typography.caption
+                            )
                         }
                     }
                 }
@@ -156,6 +169,13 @@ fun PhotoScreen(onNext: (List<Uri>) -> Unit) {
             }
 
             Spacer(Modifier.height(12.dp))
+
+            // 🔽 Дополнительный контент ПОД фотографиями, НО НАД кнопкой
+            extraContentBelowPhotos?.invoke()
+
+            if (extraContentBelowPhotos != null) {
+                Spacer(Modifier.height(12.dp))
+            }
 
             Button(
                 onClick = { onNext(photos.toList()) },
