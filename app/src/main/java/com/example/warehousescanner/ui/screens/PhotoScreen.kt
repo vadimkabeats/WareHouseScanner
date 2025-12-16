@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.warehousescanner.util.createTempImageUri
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
@@ -166,16 +167,18 @@ fun PhotoScreen(
                         ) { Icon(Icons.Default.Close, contentDescription = "Удалить") }
                     }
                 }
+
+                // ✅ ФУТЕР: комментарий сразу под фото
+                if (extraContentBelowPhotos != null) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Spacer(Modifier.height(12.dp))
+                        extraContentBelowPhotos()
+                    }
+                }
             }
 
             Spacer(Modifier.height(12.dp))
 
-            // 🔽 Дополнительный контент ПОД фотографиями, НО НАД кнопкой
-            extraContentBelowPhotos?.invoke()
-
-            if (extraContentBelowPhotos != null) {
-                Spacer(Modifier.height(12.dp))
-            }
 
             Button(
                 onClick = { onNext(photos.toList()) },

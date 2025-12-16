@@ -18,7 +18,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val oauthToken = "y0__xDC-PqfqveAAhiItjgguIj3xRMa5L1mPbJOCrNGULQHPk3yPF52zA"
         val fastApiUrl = "http://158.160.87.160:8000/api"
-        val gasExecUrl = "https://script.google.com/macros/s/AKfycbwDnWWw3GS2C5cBX3u-G_7NEhFiZXSnhUX7LeysLgnq7ZJjmxiwhQrWjjMGlGdFOSQ/exec"
+        val gasExecUrl = "https://script.google.com/macros/s/AKfycbwB9JnexK_J4XZ3260BuoHAr0jMABKAAij_-LN5by2ez2N-qKuQ2gVJlHTkCdBWIdI/exec"
         val apiKey = "SECRET_KEY"
         GoogleSheetClient.init(
             fastApiUrl = fastApiUrl,

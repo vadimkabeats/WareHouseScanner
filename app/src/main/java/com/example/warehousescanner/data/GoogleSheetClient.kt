@@ -32,7 +32,7 @@ object GoogleSheetClient {
     private lateinit var gasApi: GoogleSheetApi
 
     private var fastApiUrl: String = "http://158.160.87.160:8000/api"
-    private var gasUrl: String = "https://script.google.com/macros/s/AKfycbwDnWWw3GS2C5cBX3u-G_7NEhFiZXSnhUX7LeysLgnq7ZJjmxiwhQrWjjMGlGdFOSQ/exec"
+    private var gasUrl: String = "https://script.google.com/macros/s/AKfycbwB9JnexK_J4XZ3260BuoHAr0jMABKAAij_-LN5by2ez2N-qKuQ2gVJlHTkCdBWIdI/exec"
     private var apiKey: String = "SECRET_KEY"
 
     fun init(fastApiUrl: String, gasExecUrl: String, key: String) {

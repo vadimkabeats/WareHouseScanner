@@ -143,7 +143,7 @@ fun ReturnProcessScreen(
                                                     context = context,
                                                     device = device,
                                                     barcodeText = item.barcode,
-                                                    captionText = item.title.ifBlank { null }
+                                                    captionText = item.barcode
                                                 )
                                             } catch (e: Exception) {
                                                 printError =
